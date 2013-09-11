@@ -1,9 +1,10 @@
-package dtx;
+package dtx.layout;
 
 import haxe.ds.StringMap;
 using Detox;
 using StringTools;
 
+/** Deprecated.  Use IDetoxLayout instead... **/
 class DetoxLayout extends dtx.DOMCollection
 {
 	public var dtd:String;
