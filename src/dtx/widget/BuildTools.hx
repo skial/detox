@@ -16,8 +16,7 @@ import haxe.macro.Context;
 import haxe.macro.Format;
 import haxe.macro.Printer;
 import haxe.macro.Type;
-using tink.macro.tools.MacroTools;
-using haxe.macro.ExprTools;
+using tink.MacroApi;
 using StringTools;
 using Lambda;
 using Detox;
@@ -27,6 +26,9 @@ class BuildTools
 {
 	static var fieldsForClass:Map<String, Array<Field>> = new Map();
 
+    /** Return the pos of the class that this build macro is operating on **/
+    public static function currentPos():Position return Context.getLocalClass().get().pos;
+
 	/** Allow us to get a list of fields, but will keep a local copy, in case we make changes.  This way 
 	in an autobuild macro you can use BuildTools.getFields() over and over, and modify the array each time,
 	and finally use it as the return value of the build macro.  */
@@ -35,7 +37,7 @@ class BuildTools
         var className = haxe.macro.Context.getLocalClass().toString();
         if (fieldsForClass.exists(className) == false)
         {
-        	fieldsForClass.set(className, haxe.macro.Context.getBuildFields());
+        	fieldsForClass.set(className, Context.getBuildFields());
         }
         return fieldsForClass.get(className);
 	}
@@ -120,7 +122,7 @@ class BuildTools
 
     public static function hasClassMetadata(dataName:String, recursive=false, ?cl:Ref<ClassType>):Bool 
     {
-        var p = Context.currentPos();                           // Position where the original Widget class is declared
+        var p = currentPos();                           // Position where the original Widget class is declared
         var localClass = (cl == null) ? haxe.macro.Context.getLocalClass() : cl;    // Class that is being declared, or class that is passed in
         var meta = localClass.get().meta;                       // Metadata of the this class
         
@@ -148,7 +150,7 @@ class BuildTools
     /** Searches the metadata for the current class - expects to find one or more strings @dataName("my string", "2nd string"), returns empty array in none found.  Generates an error if one was found but it was the wrong type. Can search recursively up the super-classes if 'recursive' is true */
     public static function getClassMetadata_ArrayOfStrings(dataName:String, recursive=false, ?cl:Ref<ClassType>):Array<String>
     {
-        var p = Context.currentPos();                           // Position where the original Widget class is declared
+        var p = currentPos();                           // Position where the original Widget class is declared
         var localClass = (cl == null) ? haxe.macro.Context.getLocalClass() : cl;    // Class that is being declared, or class that is passed in
         var meta = localClass.get().meta;                       // Metadata of the this class
         var result = [];
@@ -194,7 +196,7 @@ class BuildTools
 	existing one. */
     public static function getOrCreateField(fieldToAdd:Field)
     {
-        var p = Context.currentPos();                           // Position where the original Widget class is declared
+        var p = currentPos();                           // Position where the original Widget class is declared
         var localClass = haxe.macro.Context.getLocalClass();    // Class that is being declared
         var fields = getFields();
 
@@ -223,7 +225,7 @@ class BuildTools
     Returns a simple object containing the fields for the property, the setter and the getter.  */
     public static function getOrCreateProperty(propertyName:String, propertyType:ComplexType, useGetter:Bool, useSetter:Bool):{ property:Field, getter:Field, setter:Field }
     {
-        var p = Context.currentPos();                           // Position where the original Widget class is declared
+        var p = currentPos();                           // Position where the original Widget class is declared
         
         var getterString = (useGetter) ? "get_" + propertyName : "default";
         var setterString = (useSetter) ? "set_" + propertyName : "default";
@@ -255,7 +257,7 @@ class BuildTools
             case FieldType.FFun(_):
                 var className = Context.getLocalClass().toString();
                 var msg = "Trying to create a property called " + propertyName + " on class " + className + " but a function with the same name already exists.";
-                Context.error(msg, Context.currentPos());
+                Context.error(msg, currentPos());
         }
 
         // Set up the getter
@@ -341,7 +343,7 @@ class BuildTools
             case FFun(f):
                 fn = f;
             default: 
-                Context.error("addLinesToFunction was sent a field that is not a function.", Context.currentPos());
+                Context.error("addLinesToFunction was sent a field that is not a function.", currentPos());
         }
 
         // Get the "block" of the function body
@@ -351,7 +353,7 @@ class BuildTools
             case EBlock(b):
                 body = b;
             default:
-                Context.error("addLinesToFunction was expecting an EBlock as the function body, but got something else.", Context.currentPos());
+                Context.error("addLinesToFunction was expecting an EBlock as the function body, but got something else.", currentPos());
         }
         
         addLinesToBlock(body, lines, whereToAdd);
@@ -402,6 +404,23 @@ class BuildTools
         }
         getIdent(expr);
         return parts;
+    }
+
+    /** 
+        Given a list of idents, generate a `(ident1!=null && ident2!=null)` type expression.  
+        If there are no idents, it will return `true` as an expression so you can still safely use it.
+    **/
+    public static function generateNullCheckForIdents( idents:Array<String> ) {
+        if ( idents.length>0 ) {
+            var nullChecks = [ for (name in idents) macro $i{name}!=null ];
+            var nothingNull = nullChecks.shift();
+            while ( nullChecks.length>0 ) {
+                var nextCheck = nullChecks.shift();
+                nothingNull = macro $nothingNull && $nextCheck;
+            }
+            return nothingNull;
+        }
+        else return macro true;
     }
 
     /** Takes a bunch of Binop functions `x + " the " + y + 10` and returns an array of each part. */

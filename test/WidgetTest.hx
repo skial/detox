@@ -35,6 +35,7 @@ class WidgetTest
 	@Before
 	public function setup():Void
 	{
+		Widget.useCache = true;
 		var sampleDocument = "<myxml>
 			<h1>Title</h1>
 			<p>One</p>
@@ -50,9 +51,47 @@ class WidgetTest
 		// trace ("Tear Down");
 	}
 
+	// @Test @TestDebug
+	// public function testWidgetTimes() 
+	// {
+	// 	var html = "<p><b>Some Stufff</b> and <em>More stuff</em><!-- and even more --></p>";
+	// 	var iterations = 10000;
+
+	// 	trace ("Without cache");
+	// 	Widget.useCache = false;
+	// 	haxe.Timer.measure( function() {
+	// 		for (i in 0...iterations) {
+	// 			var w = new widgets.Interpolation.InterpolationDifferentTypes();
+	// 			w.name = "Jason";
+	// 		}
+	// 		return null;
+	// 	});
+
+	// 	trace ("With cache");
+	// 	Widget.useCache = true;
+	// 	haxe.Timer.measure( function() {
+	// 		for (i in 0...iterations) {
+	// 			var w = new widgets.Interpolation.InterpolationDifferentTypes();
+	// 			w.name = "Jason";
+	// 		}
+	// 		return null;
+	// 	});
+
+	// 	trace ("Rewrite");
+	// 	Widget.useCache = true;
+	// 	haxe.Timer.measure( function() {
+	// 		var w = new widgets.Interpolation.InterpolationDifferentTypes();
+	// 		for (i in 0...iterations) {
+	// 			w.name = "Jason";
+	// 		}
+	// 		return null;
+	// 	});
+	// }
+
 	@Test 
 	public function createWidgetNonElement()
 	{
+		Widget.useCache = false;
 		var w1 = new SimpleTestWidget("<!--comment-->");
 		var w2 = new SimpleTestWidget("text node");
 		Assert.isTrue(w1.getNode().isComment());
@@ -66,6 +105,7 @@ class WidgetTest
 	@Test 
 	public function createWidgetMultipleElements()
 	{
+		Widget.useCache = false;
 		var w = new SimpleTestWidget("<h1>Title</h1> <p>Paragraph</p>");
 		Assert.areEqual(3, w.length);
 		Assert.isTrue(w.getNode(0).isElement());
@@ -83,6 +123,7 @@ class WidgetTest
 	@Test 
 	public function createWidgetFromSubClass()
 	{
+		Widget.useCache = false;
 		var w = new widgets.WidgetSetBySubclass();
 		Assert.areEqual("h1", w.tagName());
 		Assert.areEqual(1, w.length);
