@@ -13,7 +13,6 @@ package dtx.widget;
 
 import dtx.DOMNode;
 import haxe.macro.Expr;
-import haxe.macro.Context;
 import haxe.macro.Format;
 import haxe.macro.Type;
 import haxe.macro.Printer;
@@ -46,7 +45,7 @@ class WidgetTools
     {
         if (templates==null) templates = new StringMap();
 
-        var localClass = haxe.macro.Context.getLocalClass();    // Class that is being declared
+        var localClass = Context.getLocalClass();    // Class that is being declared
         var widgetPos = localClass.get().pos;                   // Position where the original Widget class is declared
         var fields = BuildTools.getFields();
 
@@ -158,6 +157,7 @@ class WidgetTools
                     {
                         error('Could not load the widget template: $templateFile', p);
                     }
+
                 }
             }
         }
@@ -172,15 +172,15 @@ class WidgetTools
         var fullTemplate = BuildTools.loadFileFromLocalContext(templateFile);
         if (fullTemplate != null) 
         {
-            var tpl:DOMCollection = fullTemplate.parse();
-            if ( tpl.length==0 )
-                error( 'Failed to parse Xml for template file: $templateFile $partialName', p );
+            var tpl =
+                try parseXml( fullTemplate )
+                catch ( e:Dynamic ) error( 'Failed to parse partial template for ${Context.getLocalClass()}: $e', p );
             
             var allNodes = Lambda.concat(tpl, tpl.descendants());
             var partialMatches = allNodes.filter(function (n) { return n.nodeType == Xml.Element && n.nodeName == partialName; });
             
             if (partialMatches.length == 1) 
-                partialTemplate = partialMatches.first().innerHTML();
+                partialTemplate = getInnerHtmlPreservingTagNameCase( partialMatches.first() );
             else if (partialMatches.length > 1) 
                 error('The partial $partialName was found more than once in the template $templateFile... confusing!', p);
             else 
@@ -212,15 +212,31 @@ class WidgetTools
         }
     }
 
+    static function parseXml(xml:String):DOMCollection {
+        var c = new DOMCollection();
+        if ( xml==null )
+            throw 'Unable to parse null value as Xml';
+        var xml =  haxe.xml.Parser.parse(xml);
+        if ( xml.isDocument() ) {
+            for ( child in xml ) {
+                c.add( child );
+            }
+        }
+        else {
+            c.add( xml );
+        }
+        return c;
+    }
+
     static function processTemplate(template:String):{ template:String, fields:Array<Field> }
     {
         // Get every node (including descendants)
         var localClass = Context.getLocalClass();
         var p = Context.getLocalClass().get().pos;
 
-        var xml = template.parse();
-        if ( xml.length==0 ) 
-            error( 'Failed to parse template for widget $localClass', p );
+        var xml =
+            try parseXml(template)
+            catch (e:Dynamic) error( 'Failed to parse template for $localClass: $e', p );
         
         var fieldsToAdd = new Array<Field>();
 
@@ -241,16 +257,7 @@ class WidgetTools
             processNode( node, partialNumber, loopNumber );
         }
 
-        // More escaping hoop-jumping.  Basically, xml.html() will encode the text nodes, but not the attributes. Gaarrrh
-        // So if we go through the attributes on each of our top level nodes, and escape them, then we can unescape the whole thing.
-        for (node in xml)
-            if (node.isElement())
-                for (att in node.attributes())
-                    node.setAttr(att, node.attr(att).htmlEscape());
-
-        var html = xml.html().htmlUnescape();
-
-        return { template: html, fields: fieldsToAdd };
+        return { template: xml.html(), fields: fieldsToAdd };
     }
 
     static function processNode( node:DOMNode, partialNumber:TinkRef<Int>, loopNumber:TinkRef<Int> ) {
@@ -315,7 +322,7 @@ class WidgetTools
     
     static function processPartialDeclarations(name:String, node:dtx.DOMNode, ?fields:Array<Field>, ?useKeepWidget=false)
     {
-        var localClass = haxe.macro.Context.getLocalClass();
+        var localClass = Context.getLocalClass();
         var p = localClass.get().pos;
         var pack = localClass.get().pack;
         if ( node.attr('keep')=="true" ) useKeepWidget = true;
@@ -329,7 +336,7 @@ class WidgetTools
             }
         }
 
-        var partialTpl = node.innerHTML();
+        var partialTpl = getInnerHtmlPreservingTagNameCase( node );
 
         var className = localClass.get().name + name;
         var classMeta = [{
@@ -380,8 +387,32 @@ class WidgetTools
                 isExtern: false,
                 fields: fields
             };
-            haxe.macro.Context.defineType(partialDefinition);
+            Context.defineType(partialDefinition);
         }
+    }
+
+    @:access(dtx.single.Traversing)
+    @:access(dtx.single.ElementManipulation)
+    static function getInnerHtmlPreservingTagNameCase(elm:DOMNode):String
+    {
+        var ret="";
+        if (elm != null)
+        {
+            switch (elm.nodeType)
+            {
+                case dtx.DOMType.ELEMENT_NODE:
+                    var sb = new StringBuf();
+                    for ( child in dtx.single.Traversing.unsafeGetChildren(elm,false) ) 
+                    {
+                        dtx.single.ElementManipulation.printHtml( child, sb, true );
+                    }
+                    ret = sb.toString();
+                default:
+                    ret = elm.textContent;
+
+            }
+        }
+        return ret;
     }
 
     static function processPartialCalls(node:dtx.DOMNode, t:Int)
@@ -478,30 +509,39 @@ class WidgetTools
         BuildTools.addLinesToFunction(initFn, linesToAdd, 0);
 
         // Any attributes on the partial are variables to be passed.  Every time a setter on the parent widget is called, it should trigger the relevent setter on the child widget
-        for (attName in node.attributes())
+        for (attName in (node:Xml).attributes())
         {
-            if (attName != "dtx-name")
+            if (attName.startsWith("dtx")==false)
             {
                 var propertyRef = '$name.$attName'.resolve();
                 var valueExprStr = node.attr(attName);
-                var valueExpr = 
-                    try 
-                        Context.parse( valueExprStr, p )
-                    catch (e:Dynamic) 
-                        error('Error parsing $attName="$valueExprStr" in $typeName partial call ($widgetClass template). \nError: $e \nNode: ${node.html()}', p);
+                var valueExpr:Expr;
+
+                // We use a similar syntax to text interpolation, but we unwrap the resulting expression so that it is not cast to a string.
+                // Still, this allows for attr="constantVal" attr="$variable" and attr="${'_'+someVar}", so it is fairly powerful.
+                var formattedExpr = Format.format( macro $v{valueExprStr} );
+                switch formattedExpr.expr {
+                    case ECheckType( { expr:EConst(CString(constantString)), pos:pos }, type):
+                        valueExpr = formattedExpr;
+                    case ECheckType( { expr:EBinop(OpAdd,macro "",expr2), pos:pos }, type):
+                        // `""+someValue`: the "" is to cast to a String, we are interested in the value only.
+                        valueExpr = expr2;
+                    case ECheckType( { expr:EBinop(OpAdd,_,_), pos:pos }, type):
+                        // adding some expression, going to assume string?
+                        valueExpr = formattedExpr;
+                    case other:
+                        Context.error( 'Failed to extract understand expression from from <${node.tagName()} $attName="$valueExprStr">, please use a simpler attribute or file a feature request.', p );
+                }
                 
+                var nothingNull = valueExpr.generateNullCheckForExpression();
+                var setterExpr = macro if ($nothingNull) $propertyRef = $valueExpr;
                 var idents =  valueExpr.extractIdents();
                 if ( idents.length>0 ) {
-
-                    var nothingNull = idents.generateNullCheckForIdents();
-
-                    var setterExpr = macro if ($nothingNull) $propertyRef = $valueExpr;
                     // If it has variables, set it in all setters
                     addExprToAllSetters(setterExpr,idents, true);
                 }
                 else {
                     // If it doesn't, set it in init
-                    var setterExpr = macro $propertyRef = $valueExpr;
                     BuildTools.addLinesToFunction(initFn, setterExpr);
                 }
 
@@ -514,7 +554,7 @@ class WidgetTools
     {
         // Generate a name for the partial.  Either take it from the <dtx:MyPartial dtx-name="this" /> attribute,
         // or autogenerate one (partial_$t, t++)
-        var widgetClass = haxe.macro.Context.getLocalClass();
+        var widgetClass = Context.getLocalClass();
         var nameAttr = node.attr('dtx-name');
         var name = (nameAttr != "") ? nameAttr : "loop_" + t;
         var p = widgetClass.get().pos;
@@ -643,7 +683,7 @@ class WidgetTools
             
             // Replace the call with <div data-dtx-loop="$name"></div>
             var partialFirstElement = node.firstChildren( true );
-            var placeholderName = switch( node.parent.tagName() ) {
+            var placeholderName = switch( node.parentNode.tagName() ) {
                 case "tbody", "table", "thead", "tfoot": "tr";
                 case "colgroup": "col";
                 case "tr": "td";
@@ -692,7 +732,7 @@ class WidgetTools
             var propNameExpr = Context.makeExpr( propName, p );
             linesToAdd = macro {
                 // new WidgetLoop($Partial, $varName, propmap=null, automap=true)
-                $variableRef = new dtx.widget.WidgetLoop($partialTypeRef, $propNameExpr, null, true);
+                $variableRef = new dtx.widget.WidgetLoop($partialTypeRef, $propNameExpr, true);
                 $variableRef.setJoins($joinExpr, $finalJoinExpr, $afterJoinExpr);
             };
             BuildTools.addLinesToFunction(initFn, linesToAdd);
@@ -700,20 +740,18 @@ class WidgetTools
             // Find any variables mentioned in the iterable / for loop, and add to our setter
             if ( iterableExpr!=null ) {
                 var idents = iterableExpr.extractIdents();
-                var setterExpr = macro 
-                    if ($variableRef!=null) {
-                        try 
-                            $variableRef.setList( $iterableExpr )
-                        catch (e:Dynamic) 
-                            $variableRef.empty();
+                var iterableNullCheck = BuildTools.generateNullCheckForExpression( iterableExpr );
+                var setListLine = macro 
+                    if ( $variableRef!=null && $iterableNullCheck ) {
+                        try $variableRef.setList( $iterableExpr ) catch (e:Dynamic) $variableRef.empty();
                     }
 
                 if ( idents.length>0 ) 
                     // If it has variables, set it in all setters
-                    addExprToAllSetters(setterExpr,idents, true);
+                    addExprToAllSetters(setListLine,idents, true);
                 else
                     // If it doesn't, set it in init
-                    BuildTools.addLinesToFunction(initFn, setterExpr);
+                    BuildTools.addLinesToFunction(initFn, setListLine);
             }
         }
 
@@ -739,7 +777,7 @@ class WidgetTools
 
     static function processAttributes(node:dtx.DOMNode)
     {
-        for (attName in node.attributes())
+        for (attName in (node:Xml).attributes())
         {
             if (attName.startsWith('dtx-on-'))
             {
@@ -765,7 +803,7 @@ class WidgetTools
             else 
             {
                 // look for variable interpolation eg <div id="person_$name">...</div>
-                if (node.get(attName).indexOf('$') > -1)
+                if (node.getAttribute(attName).indexOf('$') > -1)
                 {
                     interpolateAttributes(node, attName);
                 }
@@ -829,7 +867,7 @@ class WidgetTools
                 eventBodyExpr.substitute({ "_": macro e.currentTarget });
 
                 var selector = getUniqueSelectorForNode(node); // Returns for example: dtx.collection.Traversing.find(this, $selectorTextAsExpr)
-                var lineToAdd = macro $selector.on( $v{eventName}, function (e:js.html.Event) { $eventBodyExpr; } );
+                var lineToAdd = macro dtx.single.EventManagement.on( $selector, $v{eventName}, function (e:js.html.Event) { $eventBodyExpr; } );
                 
                 var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
                 BuildTools.addLinesToFunction(initFn, lineToAdd);
@@ -886,9 +924,17 @@ class WidgetTools
 
             var fieldName = getLeftMostVariable( bindToExpr );
             var setValueExpr = switch attName {
-                case "dtx-bind-int-value": macro (''+$bindToExpr!="null") ? ''+$bindToExpr : '';
-                case "dtx-bind-float-value": macro (''+$bindToExpr!="NaN"&&''+$bindToExpr!="null") ? ''+$bindToExpr : '';
-                default: macro ($bindToExpr!=null) ? ''+$bindToExpr : '';
+                case "dtx-bind-int-value":
+                    var nullCheck = bindToExpr.generateNullCheckForExpression();
+                    macro ($nullCheck) ? ''+$bindToExpr : '';
+                case "dtx-bind-float-value":
+                    var nanCheck = macro Math.isNaN($bindToExpr)==false;
+                    var nullCheck = bindToExpr.generateNullCheckForExpression();
+                    nullCheck = macro $nullCheck && $nanCheck;
+                    macro ($nullCheck) ? ''+$bindToExpr : "";
+                default:
+                    var nullCheck = bindToExpr.generateNullCheckForExpression();
+                    macro ($nullCheck) ? ''+$bindToExpr : '';
             }
             var setValLine = macro dtx.single.ElementManipulation.setVal( $selector, $setValueExpr );
             addExprToAllSetters( setValLine, [fieldName] );
@@ -1008,7 +1054,7 @@ class WidgetTools
     static function interpolateTextNodes(node:dtx.DOMNode)
     {
         // Get (or set) ID on parent, get selector
-        var selectorAsExpr = getUniqueSelectorForNode(node.parent);
+        var selectorAsExpr = getUniqueSelectorForNode(node.parentNode);
         var index = node.index();
         var indexAsExpr = index.toExpr();
         
@@ -1046,8 +1092,14 @@ class WidgetTools
         }
     }
 
+    static var initialisationExpressions:Map<String,Array<String>> = new Map();
+
     static function addExprInitialisationToConstructor(variables:Array<String>)
     {
+        var clsName = Context.getLocalClass().toString();
+        if (initialisationExpressions[clsName]==null) initialisationExpressions[clsName] = [];
+        var varsAlreadyInitialized = initialisationExpressions[clsName];
+
         for (varName in variables)
         {
             var field = varName.getField();
@@ -1083,13 +1135,16 @@ class WidgetTools
                     }
                     if ( initValueExpr!=null )
                     {
-                        // Update the init expression, and add to the init function
-                        // We want both, the init function so that setters fire, and the init expression
-                        // so that all values are initialized by the time the first setter fires also...
-                        field.kind = FProp(get,set,type,initValueExpr);
-                        var varRef = varName.resolve();
-                        var setExpr = macro $varRef = $initValueExpr;
-                        BuildTools.addLinesToFunction(initFn, setExpr);
+                        if ( varsAlreadyInitialized.has(varName)==false ) {
+                            // Update the init expression, and add to the init function
+                            // We want both, the init function so that setters fire, and the init expression
+                            // so that all values are initialized by the time the first setter fires also...
+                            field.kind = FProp(get,set,type,initValueExpr);
+                            var varRef = varName.resolve();
+                            var setExpr = macro $varRef = $initValueExpr;
+                            BuildTools.addLinesToFunction(initFn, setExpr);
+                            varsAlreadyInitialized.push( varName );
+                        }
                     }
                 default:
             }
@@ -1119,23 +1174,22 @@ class WidgetTools
                     var prop = BuildTools.getOrCreateProperty(varName, propType, false, true);
 
                     var functionName = "print_" + varName;
-                    if (BuildTools.fieldExists(functionName))
-                    {
-                        // If yes, in interpolationExpr replace calls to $name with print_$name($name)
+                    if (BuildTools.fieldExists(functionName)) {
+                        // If "print_*" exists, in our interpolationExpr replace calls to $name with print_$name($name)
                         var replacements = {};
                         Reflect.setField( replacements, varName, macro $i{functionName}() );
                         interpolationExpr = interpolationExpr.substitute( replacements );
                     }
-                    else 
-                    {
-                        // Otherwise, hide if null
-                        interpolationExpr = macro (($i{varName} != null) ? $interpolationExpr : "");
-                    }
-                    variableNames.push(varName);
+                    if ( variableNames.indexOf(varName)==-1 )
+                        variableNames.push(varName);
                 case Call(varName), Field(varName):
-                    interpolationExpr = macro (($i{varName} != null) ? $interpolationExpr : "");
-                    variableNames.push(varName);
+                    if ( variableNames.indexOf(varName)==-1 )
+                        variableNames.push(varName);
             }
+        }
+        if ( variableNames.length>0 ) {
+            var nullCheck = BuildTools.generateNullCheckForExpression( interpolationExpr );
+            interpolationExpr = macro ($nullCheck ? $interpolationExpr : "");
         }
 
         return {
@@ -1289,12 +1343,12 @@ class WidgetTools
             {
                 case "dtx-show":
                     var className = "hidden".toExpr();
-                    trueStatement = macro dtx.single.ElementManipulation.removeClass($selector, $className);
-                    falseStatement = macro dtx.single.ElementManipulation.addClass($selector, $className);
+                    trueStatement = macro dtx.single.Style.show($selector);
+                    falseStatement = macro dtx.single.Style.hide($selector);
                 case "dtx-hide":
                     var className = "hidden".toExpr();
-                    trueStatement = macro dtx.single.ElementManipulation.addClass($selector, $className);
-                    falseStatement = macro dtx.single.ElementManipulation.removeClass($selector, $className);
+                    trueStatement = macro dtx.single.Style.hide($selector);
+                    falseStatement = macro dtx.single.Style.show($selector);
                 case "dtx-enabled":
                     trueStatement = macro dtx.single.ElementManipulation.removeAttr($selector, "disabled");
                     falseStatement = macro dtx.single.ElementManipulation.setAttr($selector, "disabled", "disabled");
@@ -1338,7 +1392,7 @@ class WidgetTools
 
             // Extract all the variables used, create the `if(test) ... else ...` expr, add to setters, initialize variables
             var idents =  testExpr.extractIdents();
-            var nothingNull = idents.generateNullCheckForIdents();
+            var nothingNull = testExpr.generateNullCheckForExpression();
             var bindingExpr = macro if ($nothingNull && $testExpr) $trueStatement else $falseStatement;
             addExprToAllSetters(bindingExpr,idents, true);
             addExprInitialisationToConstructor(idents);

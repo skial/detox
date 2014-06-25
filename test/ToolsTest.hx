@@ -116,6 +116,7 @@ class ToolsTest
 	{
 		var q = Detox.parse("<div id='test'>Hello</div>");
 
+		Assert.areEqual(1, q.length);
 		Assert.areEqual('div', q.tagName());
 		Assert.areEqual('test', q.attr('id'));
 		Assert.areEqual('Hello', q.innerHTML());
@@ -217,6 +218,17 @@ class ToolsTest
 
 		var q7 = Detox.parse("<thead>Table Body</thead>");
 		Assert.areEqual("thead", q7.tagName());
+	}
+
+	@Test
+	public function testParseXmlEntities()
+	{
+		var content = "<p title='This &amp; That'>Allow &lt;Entities&gt;</p>";
+		var xml = content.parse();
+		Assert.areEqual( "This & That", xml.attr('title') );
+		Assert.areEqual( "Allow &lt;Entities&gt;", xml.innerHTML() );
+		Assert.areEqual( "Allow <Entities>", xml.firstChildren(false).getNode().nodeValue );
+		Assert.isTrue( xml.html().indexOf("This &amp; That")>-1 );
 	}
 
 	@Test 

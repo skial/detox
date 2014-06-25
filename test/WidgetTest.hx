@@ -260,8 +260,20 @@ class WidgetTest
 	{
 		var w = new widgets.PartialInSameFile3();
 
+		Assert.areEqual( "doc", w.getNode(0).tagName() );
+		Assert.areEqual( 4, w.find("section").children().length );
+		
 		// Check that it has come through twice
-		Assert.areEqual('<doc><header><title>Test Partial</title></header><section><h1>Header</h1><p>Paragraph</p><a href="#" class="btn">Button</a><a href="#" class="btn">Button</a></section></doc>', w.html());
+		var btn1 = w.find("section").children().getNode(2);
+		var btn2 = w.find("section").children().getNode(3);
+		Assert.areEqual( "a", btn1.tagName() );
+		Assert.areEqual( "a", btn2.tagName() );
+		Assert.areEqual( "btn", btn1.attr("class") );
+		Assert.areEqual( "btn", btn2.attr("class") );
+		Assert.areEqual( "#", btn1.attr("href") );
+		Assert.areEqual( "#", btn2.attr("href") );
+		Assert.areEqual( "Button", btn1.innerHTML() );
+		Assert.areEqual( "Button", btn2.innerHTML() );
 	}
 
 	@Test 
@@ -270,7 +282,10 @@ class WidgetTest
 		var w = new widgets.PartialInSameFile3_Button();
 
 		// See if it matches _Button from that class...
-		Assert.areEqual('<a href="#" class="btn">Button</a>', w.html());
+		Assert.areEqual( "a", w.tagName() );
+		Assert.areEqual( "#", w.attr("href") );
+		Assert.areEqual( "btn", w.attr("class") );
+		Assert.areEqual( "Button", w.innerHTML() );
 	}
 
 	@Test 
@@ -418,6 +433,16 @@ class WidgetTest
 		Assert.areEqual("This person is an adult: true", w.profile2.find("p").text());
 	}
 
+	@Test
+	public function testPartialCasePreserves()
+	{
+		// When we read a partial, we call "innerHTML" on the partial declaration.  
+		// Printing the HTML for this section would usually force all tag names to lower case, which can break our partial names.
+		// This tests a widget where this issue would arise.
+		var w = new widgets.PartialInSameFile6();
+		Assert.areEqual('<doc><form><a href="#">Click!</a><a href="#">Click!</a></form></doc>', w.html());
+	}
+
 	@Test 
 	public function interpolationNotSetStrings()
 	{
@@ -458,6 +483,7 @@ class WidgetTest
 		w.age = "25";
 		w.belief = "gravity";
 		Assert.areEqual("My name is Jason, I am 25 years old and I believe in gravity", w.text());
+		Assert.areEqual("This is about Jason", w.attr('title'));
 	}
 
 	@Test 
@@ -571,33 +597,42 @@ class WidgetTest
 	{
 		var w = new widgets.BoolAttributes.ShowHideBasic();
 
+		function isHidden( n:DOMNode ):Bool {
+			#if js
+				return n.attr("style")=="display: none ! important;";
+			#else
+				return n.hasClass("hidden");
+			#end
+		}
+
 		// Test the constants
-		Assert.isFalse( w.alwaysShow.hasClass("hidden") );
-		Assert.isTrue( w.alwaysHide.hasClass("hidden") );
-		Assert.isTrue( w.neverShow.hasClass("hidden") );
-		Assert.isFalse( w.neverHide.hasClass("hidden") );
+		Assert.isFalse( isHidden(w.alwaysShow) );
+		Assert.isTrue( isHidden(w.alwaysHide) );
+		Assert.isTrue( isHidden(w.neverShow) );
+		Assert.isFalse( isHidden(w.neverHide) );
 
 		// Test the intial state of the Booleans
-		Assert.isFalse( w.showIfSomeFlag.hasClass("hidden") );
-		Assert.isTrue( w.hideIfSomeFlag.hasClass("hidden") );
-		Assert.isTrue( w.showIfSomeString.hasClass("hidden") );
-		Assert.isFalse( w.hideIfSomeString.hasClass("hidden") );
+		Assert.isFalse( isHidden(w.showIfSomeFlag) );
+		Assert.isTrue( isHidden(w.hideIfSomeFlag) );
+		Assert.isTrue( isHidden(w.showIfSomeString) );
+		Assert.isFalse( isHidden(w.hideIfSomeString) );
 
 		// Test the changed state of the Booleans
 		w.someFlag = false;
 		w.someString = "Jason";
-		Assert.isTrue( w.showIfSomeFlag.hasClass("hidden") );
-		Assert.isFalse( w.hideIfSomeFlag.hasClass("hidden") );
-		Assert.isFalse( w.showIfSomeString.hasClass("hidden") );
-		Assert.isTrue( w.hideIfSomeString.hasClass("hidden") );
+		Assert.isTrue( isHidden(w.showIfSomeFlag) );
+		Assert.isFalse( isHidden(w.hideIfSomeFlag) );
+		Assert.isFalse( isHidden(w.showIfSomeString) );
+		Assert.isTrue( isHidden(w.hideIfSomeString) );
 	}
 
 	@Test 
+	@:access( widgets.WidgetWithHtmlEncoding )
 	public function htmlCharacterEncodings()
 	{
 		var w = new widgets.WidgetWithHtmlEncoding();
-		var expected = '<p title="All about apples &amp; bananas">Apples &amp; Bananas, <i title="&laquo;More Info&raquo;">&laquo;&nbsp;Both are fruit&nbsp;&raquo</i></p>';
-		Assert.areEqual(expected, untyped w.get_template());
+		var expected = '<p title="All about apples &amp; bananas">Apples &amp; Bananas, <i>&lt;&nbsp;\'Both\' are \"fruit\"&nbsp;&gt;</i></p>';
+		Assert.areEqual(expected, w.get_template());
 	}
 
 	@Test 
@@ -621,11 +656,19 @@ class WidgetTest
 		w.name = "Jason";
 		w.age = 26.5;
 		w.amITall = true;
-		Assert.areEqual('First letter is J, my last birthday was 26<span class=""> and I am definitely tall</span>.', w.innerHTML());
+		#if js
+			Assert.areEqual('First letter is J, my last birthday was 26<span style=""> and I am definitely tall</span>.', w.innerHTML());
+		#else
+			Assert.areEqual('First letter is J, my last birthday was 26<span class=""> and I am definitely tall</span>.', w.innerHTML());
+		#end
 		w.name = "Anna";
 		w.age = 23.5;
 		w.amITall = false;
-		Assert.areEqual('First letter is A, my last birthday was 23<span class="hidden"> and I am not tall</span>.', w.innerHTML());
+		#if js
+			Assert.areEqual('First letter is A, my last birthday was 23<span style="display: none ! important;"> and I am not tall</span>.', w.innerHTML());
+		#else
+			Assert.areEqual('First letter is A, my last birthday was 23<span class="hidden"> and I am not tall</span>.', w.innerHTML());
+		#end
 	}
 
 	@Test 

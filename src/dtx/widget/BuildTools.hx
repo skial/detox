@@ -11,11 +11,15 @@
 
 package dtx.widget;
 
+import haxe.io.Path;
 import haxe.macro.Expr;
 import haxe.macro.Context;
 import haxe.macro.Format;
 import haxe.macro.Printer;
 import haxe.macro.Type;
+import sys.io.File;
+import sys.FileSystem;
+using haxe.macro.ExprTools;
 using tink.MacroApi;
 using StringTools;
 using Lambda;
@@ -24,23 +28,23 @@ using Detox;
 #if macro 
 class BuildTools 
 {
-	static var fieldsForClass:Map<String, Array<Field>> = new Map();
+    static var fieldsForClass:Map<String, Array<Field>> = new Map();
 
     /** Return the pos of the class that this build macro is operating on **/
     public static function currentPos():Position return Context.getLocalClass().get().pos;
 
-	/** Allow us to get a list of fields, but will keep a local copy, in case we make changes.  This way 
-	in an autobuild macro you can use BuildTools.getFields() over and over, and modify the array each time,
-	and finally use it as the return value of the build macro.  */
-	public static function getFields():Array<Field>
-	{
+    /** Allow us to get a list of fields, but will keep a local copy, in case we make changes.  This way
+    in an autobuild macro you can use BuildTools.getFields() over and over, and modify the array each time,
+    and finally use it as the return value of the build macro.  */
+    public static function getFields():Array<Field>
+    {
         var className = haxe.macro.Context.getLocalClass().toString();
         if (fieldsForClass.exists(className) == false)
         {
-        	fieldsForClass.set(className, Context.getBuildFields());
+            fieldsForClass.set(className, Context.getBuildFields());
         }
         return fieldsForClass.get(className);
-	}
+    }
 
     /** See if a field with the given name exists */
     public static function fieldExists(name:String)
@@ -192,8 +196,7 @@ class BuildTools
         return result;
     }
 
-	/** Takes a field declaration, and if it doesn't exist, adds it.  If it does exist, it returns the 
-	existing one. */
+    /** Takes a field declaration, and if it doesn't exist, adds it.  If it does exist, it returns the existing one. */
     public static function getOrCreateField(fieldToAdd:Field)
     {
         var p = currentPos();                           // Position where the original Widget class is declared
@@ -327,10 +330,10 @@ class BuildTools
     Sample usage:
     var myFn = BuildTools.getOrCreateField(...);
     var linesToAdd = macro {
-		for (i in 0...10)
-		{
-			trace (i);
-		}
+        for (i in 0...10)
+        {
+            trace (i);
+        }
     };
     BuildTools.addLinesToFunction(myFn, linesToAdd);
     */
@@ -379,10 +382,10 @@ class BuildTools
 
         // Add the lines, put them at the end by default
         if (whereToAdd == -1) whereToAdd = block.length;
-    	linesArray.reverse();
+        linesArray.reverse();
         for (line in linesArray)
         {
-        	block.insert(whereToAdd, line);
+            block.insert(whereToAdd, line);
         }
     }
 
@@ -411,16 +414,136 @@ class BuildTools
         If there are no idents, it will return `true` as an expression so you can still safely use it.
     **/
     public static function generateNullCheckForIdents( idents:Array<String> ) {
-        if ( idents.length>0 ) {
-            var nullChecks = [ for (name in idents) macro $i{name}!=null ];
-            var nothingNull = nullChecks.shift();
-            while ( nullChecks.length>0 ) {
-                var nextCheck = nullChecks.shift();
-                nothingNull = macro $nothingNull && $nextCheck;
-            }
-            return nothingNull;
+        var exprs = [ for (i in idents) i.resolve() ];
+        var checks = [];
+        addNullCheckForMultipleExprs( exprs, checks );
+        return
+            if ( checks.length==0 ) macro true;
+            else combineExpressionsWithANDBinop( checks );
+    }
+
+    /**
+        Check if the current compilation target is one of our static platforms: cpp, flash, java or cs.
+    **/
+    public static function isStaticPlatform():Bool {
+        return Context.defined("cpp") || Context.defined("flash") || Context.defined("java") || Context.defined("cs");
+    }
+
+    /**
+        Convert an expression into an ECheckType which casts it to Null<T>.
+
+        On static platforms basic types (Int,Float,Bool) cannot be compared to null.
+        This method wraps expressions in an ECheckType which casts them from `T` to `Null<T>`, so we can perform a comparison.
+
+        On dynamic platforms this has no effect as every value is nullable.
+
+        It would be better to avoid adding the null check for these types.
+        If someone can think of an implementation that would work here, please let me know!
+    **/
+    public static function nullableCast<T>(expr:ExprOf<T>):ExprOf<Null<T>> {
+        if ( isStaticPlatform() ) {
+            expr = macro ($expr:Null<Dynamic>);
         }
-        else return macro true;
+        return expr;
+    }
+
+    /** 
+        Given an expression, null check all idents / field access.
+
+        For example, the expression `result.name.first` will generate `result!=null && result.name!=null && result.name.first!=null`
+    **/
+    public static function generateNullCheckForExpression( expr:Expr ):ExprOf<Bool> {
+
+
+        var checks:Array<ExprOf<Bool>> = [];
+        addNullCheckForExpr( expr, checks );
+
+        // We have to be careful with the order, when checking "some.field.access", we want to generate `some!=null && some.field!=null && some.field.access!=null )`.
+        // This will prevent invalid field access if "some.field" is null but we accidentally checked "some.field.access" first.
+        // When we add field accesses, we added them in deepest->shallowest order, so here, we should reverse that order before combining them.
+        checks.reverse();
+
+        return
+            if ( checks.length==0 ) macro true;
+            else combineExpressionsWithANDBinop( checks );
+    }
+
+    /**
+        For an array of expressions, create null checks for each part of each expression.
+    **/
+    static function addNullCheckForMultipleExprs( exprs:Array<Expr>, allChecks:Array<Expr> ):Void {
+        for ( e in exprs ) {
+            addNullCheckForExpr( e, allChecks );
+        }
+    }
+
+    /**
+        For an expression, create null checks for each part of the expression recursively.
+    **/
+    static function addNullCheckForExpr( expr:Expr, allChecks:Array<Expr> ):Void {
+        switch expr.expr {
+            case EConst(CIdent(name)):
+                if (name!="null" && name!="false" && name!="true") {
+                    var nullableExpr = nullableCast(expr);
+                    allChecks.push( macro $nullableExpr!=null );
+                }
+            case EConst(_):
+                // Don't need to add any checks.
+            case EField(e,field):
+                var nullableExpr = nullableCast(expr);
+                allChecks.push( macro $nullableExpr!=null );
+                addNullCheckForExpr( e, allChecks );
+            case ECheckType(e,type):
+                addNullCheckForExpr( e, allChecks );
+            case EBinop(_,expr1,expr2):
+                addNullCheckForExpr( expr1, allChecks );
+                addNullCheckForExpr( expr2, allChecks );
+            case EUnop(_,_,e):
+                addNullCheckForExpr( e, allChecks );
+            case ECall({ expr: EField(objExpr,fnName), pos: _ },params):
+                addNullCheckForExpr( objExpr, allChecks );
+                addNullCheckForMultipleExprs( params, allChecks );
+            case ECall({ expr: EConst(CIdent(name)), pos: _ }, params):
+                allChecks.push( macro $i{name}!=null );
+                addNullCheckForMultipleExprs( params, allChecks );
+            case EArrayDecl( exprs ):
+                addNullCheckForMultipleExprs( exprs, allChecks );
+            case EObjectDecl( fields ):
+                var exprs = [ for (f in fields) f.expr ];
+                addNullCheckForMultipleExprs( exprs, allChecks );
+            case unsupportedType:
+                var typeName = std.Type.enumConstructor( unsupportedType );
+                Context.fatalError( 'Unable to generate null check for `${expr.toString()}`, field access from "$typeName" is currently not supported.', Context.getLocalClass().get().pos );
+        }
+    }
+
+    /**
+        Combine many expressions with the `&&` binop.
+
+        Example: [expr1,expr2,expr3] becomes `expr1 && expr2 && expr3`.
+
+        This will filter any duplicate expressions so they are only included once.
+    **/
+    static function combineExpressionsWithANDBinop( exprs:Array<Expr> ):ExprOf<Bool> {
+        var completeCheck:ExprOf<Bool> = null;
+
+        var filteredExprs:Array<ExprOf<Bool>> = [];
+        var filteredExprStrings:Array<String> = [];
+
+        for ( e1 in exprs ) {
+            var e1Str = e1.toString();
+            var alreadyExisted = false;
+            if ( filteredExprStrings.indexOf(e1Str)==-1 ) {
+                filteredExprs.push( e1 );
+                filteredExprStrings.push( e1Str );
+            }
+        }
+
+        while ( filteredExprs.length>0 ) {
+            var check = filteredExprs.shift();
+            completeCheck = (completeCheck==null) ? check : macro $completeCheck && $check;
+        }
+        return completeCheck;
     }
 
     /** Takes a bunch of Binop functions `x + " the " + y + 10` and returns an array of each part. */
@@ -457,28 +580,26 @@ class BuildTools
     }
 
     /** Reads a file, relative either to the project class paths, or relative to a specific class.  It will try an absolute path 
-    first (testing against each of the class paths), and then a relative path, testing against each of the class paths in the directory
-    specified by "currentPath".  If currentPath is not given, it will be set to Context.getLocalClass(); */
-    public static function loadFileFromLocalContext(filename:String, ?currentPath:String):String
+    first (testing against each of the class paths), and then a relative path, looking for files in the same package as the file the local class is declared in. */
+    public static function loadFileFromLocalContext(filename:String):String
     {
-        if (currentPath == null) currentPath = Context.getLocalClass().toString();
-        var fileContents = null;
+        var fileContents:String = null;
+
         try 
         {
-            fileContents = sys.io.File.getContent(Context.resolvePath(filename));
+            var path = Context.resolvePath(filename);
+            fileContents = File.getContent(path);
+            Context.registerModuleDependency(Context.getLocalModule(),path);
         }
         catch (e:Dynamic)
         {
             try 
             {
-                // That was searching by fully qualified classpath, but try just the same folder....
-                currentPath;                        // eg. my.pack.Widget
-                var arr = currentPath.split(".");   // eg. [my,pack,Widget]
-                arr.pop();                          // eg. [my,pack]
-                var path = arr.join("/");           // eg. my/pack
-
-                path = (path.length > 0) ? path + "/" : "./"; // add a trailing slash, unless we're on the current directory
-                fileContents = sys.io.File.getContent(Context.resolvePath(path + filename));
+                var modulePath = Context.getPosInfos(Context.getLocalClass().get().pos).file;
+                var moduleDir = Path.directory(modulePath);
+                var path = Context.resolvePath(Path.addTrailingSlash(moduleDir)+filename);
+                fileContents = File.getContent(path);
+                Context.registerModuleDependency(Context.getLocalModule(),path);
             }
             catch (e : Dynamic)
             {
