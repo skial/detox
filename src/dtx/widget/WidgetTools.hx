@@ -1,12 +1,12 @@
 /****
 * Copyright (c) 2013 Jason O'Neil
-* 
+*
 * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-* 
+*
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-* 
+*
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-* 
+*
 ****/
 
 package dtx.widget;
@@ -26,15 +26,16 @@ using Detox;
 using dtx.widget.BuildTools;
 import tink.core.Ref in TinkRef;
 
-class WidgetTools 
+class WidgetTools
 {
     static var templates:StringMap<String>;
+    static var indent = "";
 
     /**
     * This macro is called on ANY subclass of detox.widget.Widget
-    * 
+    *
     * It's purpose is to get the template for each Widget Class
-    * It looks for: 
+    * It looks for:
     *  - Metadata in the form: @:template("<div></div>") class MyWidget ...
     *  - Metadata in the form: @:loadTemplate("MyWidgetTemplate.html") class MyWidget ...
     *  - Take a guess at a filename... use current filename, but replace ".hx" with ".html"
@@ -48,6 +49,11 @@ class WidgetTools
         var localClass = Context.getLocalClass();    // Class that is being declared
         var widgetPos = localClass.get().pos;                   // Position where the original Widget class is declared
         var fields = BuildTools.getFields();
+        var returnBuildFuilds = false;
+        #if detox_widget_debug
+            trace( '$indent Start: '+localClass.toString() );
+        #end
+        indent+="  ";
 
         // If get_template() already exists, don't recreate it
         var skipTemplating = BuildTools.hasClassMetadata(":skipTemplating");
@@ -61,7 +67,7 @@ class WidgetTools
                 // Process the template looking for partials, variables etc
                 // This function processes the template, and returns any binding statements
                 // that may be needed for bindings / variables etc.
-                
+
                 var result = processTemplate(template);
 
                 // Push the extra class properties that came during our processing
@@ -70,7 +76,7 @@ class WidgetTools
                     fields.push(f);
                 }
 
-                // Create and add the get_template() field. 
+                // Create and add the get_template() field.
                 fields.push(createField_get_template(result.template, template, widgetPos));
 
                 // Keep track of the template in case we need it later...
@@ -83,13 +89,18 @@ class WidgetTools
                     BuildTools.printFields();
                 }
 
-                return fields;
+                returnBuildFuilds = true;
             }
         }
 
 
+        indent = indent.substr( 2 );
+        #if detox_widget_debug
+            trace( '$indent Finish: '+localClass.toString() );
+        #end
+
         // Leave the fields as is
-        return null;
+        return returnBuildFuilds ? fields : null;
     }
 
     /**
@@ -111,7 +122,7 @@ class WidgetTools
     {
         var p = localClass.get().pos;                           // Position where the original Widget class is declared
         var className = localClass.toString();                  // Name of the class eg "my.pack.MyType"
-        
+
         var templateFile:String = "";                           // If we are loading template from a file, this is the filename
         var template:String = "";                               // If the template is directly in metadata, use that.
 
@@ -138,16 +149,16 @@ class WidgetTools
                 var templateFile = BuildTools.getClassMetadata_String(":loadTemplate", true);
                 if (templateFile == null)
                 {
-                    // If there is no metadata for the template, look for a file in the same 
+                    // If there is no metadata for the template, look for a file in the same
                     // spot but with ".html" instead of ".hx" at the end.
                     templateFile = className.replace(".", "/") + ".html";
                 }
 
                 // Attempt to load the file
                 template = BuildTools.loadFileFromLocalContext(templateFile);
-                
+
                 // If still no template, check if @:noTemplate() was declared, if not, throw error.
-                if (template == null) 
+                if (template == null)
                 {
                     var noTemplate = BuildTools.hasClassMetadata(":noTemplate",false);
                     var parentHasTemplate = BuildTools.hasClassMetadata(":template",true);
@@ -155,7 +166,7 @@ class WidgetTools
                     var parentHasTemplatePartial = BuildTools.hasClassMetadata(":partialInside",true);
                     if ( false==(noTemplate||parentHasTemplate||parentHasTemplateFile||parentHasTemplatePartial) )
                     {
-                        error('Could not load the widget template: $templateFile', p);
+                        Context.warning('Could not load the widget template: $templateFile', p);
                     }
 
                 }
@@ -168,46 +179,46 @@ class WidgetTools
     {
         var p = Context.getLocalClass().get().pos;                       // Position where the original Widget class is declared
         var partialTemplate:String = null;
-        
+
         var fullTemplate = BuildTools.loadFileFromLocalContext(templateFile);
-        if (fullTemplate != null) 
+        if (fullTemplate != null)
         {
             var tpl =
                 try parseXml( fullTemplate )
                 catch ( e:Dynamic ) error( 'Failed to parse partial template for ${Context.getLocalClass()}: $e', p );
-            
+
             var allNodes = Lambda.concat(tpl, tpl.descendants());
             var partialMatches = allNodes.filter(function (n) { return n.nodeType == Xml.Element && n.nodeName == partialName; });
-            
-            if (partialMatches.length == 1) 
+
+            if (partialMatches.length == 1)
                 partialTemplate = getInnerHtmlPreservingTagNameCase( partialMatches.first() );
-            else if (partialMatches.length > 1) 
+            else if (partialMatches.length > 1)
                 error('The partial $partialName was found more than once in the template $templateFile... confusing!', p);
-            else 
+            else
                 error('The partial $partialName was not found in the template $templateFile', p);
         }
         else error('Could not load the file $templateFile that $partialName is supposedly in.', p);
 
         return partialTemplate;
     }
-    
+
     static function createField_get_template(template:String, original:String, widgetPos:Position):Field
     {
         // Clear whitespace from the start and end of the widget
         var whitespaceStartOrEnd = ~/^\s+|\s+$/g;
         template = whitespaceStartOrEnd.replace(template, "");
 
-        return { 
-            name : "get_template", 
-            doc : "__Template__:\n\n```\n" + original + "\n```", 
-            meta : [], 
-            access : [APublic,AOverride], 
-            kind : FFun({ 
-                args: [], 
+        return {
+            name : "get_template",
+            doc : "__Template__:\n\n```\n" + original + "\n```",
+            meta : [],
+            access : [APublic,AOverride],
+            kind : FFun({
+                args: [],
                 expr: macro { return $v{template}; },
-                params: [], 
-                ret: null 
-            }), 
+                params: [],
+                ret: null
+            }),
             pos: widgetPos
         }
     }
@@ -237,7 +248,7 @@ class WidgetTools
         var xml =
             try parseXml(template)
             catch (e:Dynamic) error( 'Failed to parse template for $localClass: $e', p );
-        
+
         var fieldsToAdd = new Array<Field>();
 
         // Process partial declarations on the top level first (and then remove them from the collection/template)
@@ -263,7 +274,7 @@ class WidgetTools
     static function processNode( node:DOMNode, partialNumber:TinkRef<Int>, loopNumber:TinkRef<Int> ) {
         if (node.tagName() == "dtx:loop")
         {
-            // It's a loop element... either: 
+            // It's a loop element... either:
             //    <dtx:loop><dt>$name</dt><dd>$age</dd></dtx:loop> OR
             //    <dtx:loop partial="Something" />
             loopNumber.value = loopNumber.value+1;
@@ -290,7 +301,7 @@ class WidgetTools
             {
                 interpolateTextNodes(node);
             }
-            // Get rid of HTML encoding.  Haxe3 does this automatically, but we want it to remain unencoded.  
+            // Get rid of HTML encoding.  Haxe3 does this automatically, but we want it to remain unencoded.
             // (I think?  While it might be nice to have it do the encoding for you, it is not expected, so violates principal of least surprise.  Also, how does '&nbsp;' get entered?)
             // And it appears to only affect the top level element, not any descendants.  Weird...
             node.setText(node.text().htmlUnescape());
@@ -311,22 +322,21 @@ class WidgetTools
         {
             // if it's the last node, get rid of stuff at the end
             var re = ~/\s+$/g;
-            text = re.replace(text, "");   
+            text = re.replace(text, "");
         }
 
         if (text == "" || ~/^\s+$/.match(text))
             node.removeFromDOM();
-        else 
+        else
             node.setText(text);
     }
-    
-    static function processPartialDeclarations(name:String, node:dtx.DOMNode, ?fields:Array<Field>, ?useKeepWidget=false)
+
+    static function processPartialDeclarations(name:String, node:dtx.DOMNode, ?fields:Array<Field>)
     {
         var localClass = Context.getLocalClass();
         var p = localClass.get().pos;
         var pack = localClass.get().pack;
-        if ( node.attr('keep')=="true" ) useKeepWidget = true;
-        
+
         // Before getting the partial TPL, let's clear out any whitespace
         for (d in node.descendants(false))
         {
@@ -344,7 +354,7 @@ class WidgetTools
             params: [Context.makeExpr(partialTpl, p)],
             name: ":template"
         }];
-        for ( meta in localClass.get().meta.get() ) 
+        for ( meta in localClass.get().meta.get() )
             classMeta.push(meta);
 
         // Find out if the type has already been defined
@@ -367,13 +377,14 @@ class WidgetTools
                 default:
             }
         }
-        else 
+        else
         {
+            var parentClass = Context.toComplexType( Context.getLocalType() );
             var classKind = TypeDefKind.TDClass({
                 sub: null,
-                params: [],
+                params: [TPType(parentClass)],
                 pack: ['dtx','widget'],
-                name: (useKeepWidget) ? "KeepWidget" : "Widget"
+                name: "ChildWidget"
             });
             if (fields==null) fields = [];
 
@@ -402,7 +413,7 @@ class WidgetTools
             {
                 case dtx.DOMType.ELEMENT_NODE:
                     var sb = new StringBuf();
-                    for ( child in dtx.single.Traversing.unsafeGetChildren(elm,false) ) 
+                    for ( child in dtx.single.Traversing.unsafeGetChildren(elm,false) )
                     {
                         dtx.single.ElementManipulation.printHtml( child, sb, true );
                     }
@@ -444,10 +455,12 @@ class WidgetTools
         var type = try {
             Context.getType(typeName);
         } catch (e:String) {
-            if ( e=="Type not found '" + typeName + "'" ) 
+            if ( e=="Type not found '" + typeName + "'" )
                 error('Unable to find Widget/Partial "$typeName" in widget template $widgetClass', widgetClass.get().pos);
             else throw e;
         }
+
+        var isChildWidget = type.isSubTypeOf(Context.getType("dtx.widget.ChildWidget")).match(Success(_));
 
         // Alternatively use: type = Context.typeof(macro new $typeName()), see what works
         var classType:Ref<ClassType>;
@@ -457,10 +470,10 @@ class WidgetTools
                 // get the type
                 classType = t;
                 pack = classType.get().pack;
-            default: 
+            default:
                 throw "Asked for partial " + typeName + " but that doesn't appear to be a class";
         }
-        
+
         // Replace the call with <div data-dtx-partial="$name"></div>
         var partialDOM = templates.get( classType.toString() ).parse();
         var partialFirstElement = partialDOM.filter( function (n) return n.isElement() ).getNode(0);
@@ -490,7 +503,7 @@ class WidgetTools
 
         // Now that we can set it via the property setter, we do so in our init function.
         // With something like:
-        // 
+        //
         // $name = new $type()
         // this.find("[data-dtx-partial=$name]").replaceWith($name)
         //
@@ -503,9 +516,9 @@ class WidgetTools
 
         // Get the init function, instantiate our partial
         var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
-        linesToAdd = macro {
-            $variableRef = new $typePath();
-        };
+        linesToAdd =
+            if (isChildWidget) macro { $variableRef = new $typePath(this); }
+            else macro { $variableRef = new $typePath(); };
         BuildTools.addLinesToFunction(initFn, linesToAdd, 0);
 
         // Any attributes on the partial are variables to be passed.  Every time a setter on the parent widget is called, it should trigger the relevent setter on the child widget
@@ -532,7 +545,7 @@ class WidgetTools
                     case other:
                         Context.error( 'Failed to extract understand expression from from <${node.tagName()} $attName="$valueExprStr">, please use a simpler attribute or file a feature request.', p );
                 }
-                
+
                 var nothingNull = valueExpr.generateNullCheckForExpression();
                 var setterExpr = macro if ($nothingNull) $propertyRef = $valueExpr;
                 var idents =  valueExpr.extractIdents();
@@ -571,24 +584,17 @@ class WidgetTools
             try {
                 var forExpr = Context.parse( forCode, p );
                 switch (forExpr.expr) {
-                    case EFor( { expr: EIn(e1,e2), pos: _ }, _ ): 
+                    case EFor( { expr: EIn(e1,e2), pos: _ }, _ ):
                         switch (e1.expr) {
-                            case EConst(CIdent(n)): 
+                            case EConst(CIdent(n)):
                                 propName = n;
-                            case _: 
+                            case _:
                                 throw 'Was expecting EConst(CIdent(propName)), but got $e1';
                         }
-                        // For "typeof" to work, it needs us to mock member variables so it knows what type they are
-                        var variablesInContext = [];
-                        for ( field in BuildTools.getFields() ) {
-                            switch (field.kind) {
-                                case FVar(ct,_), FProp(_,_,ct,_): 
-                                    variablesInContext.push({ name: field.name, type: ct, expr: null });
-                                case _:
-                            }
-                        }
+                        // For "typeof" to work, it needs us to mock member variables and static variables so it knows what type they are.
+                        var variablesInContext = BuildTools.fakeVariablesContextForLocalClass();
                         switch e2.typeof(variablesInContext) {
-                            case Success(itType): 
+                            case Success(itType):
                                 var result;
                                 if ( Context.unify(itType, Context.getType("Iterable")) ) {
                                     result = (macro $e2.iterator().next()).typeof(variablesInContext);
@@ -606,7 +612,7 @@ class WidgetTools
                         }
 
                         iterableExpr = e2;
-                    case _: 
+                    case _:
                         throw "Was expecting EFor, got something else";
                 }
             }
@@ -624,7 +630,7 @@ class WidgetTools
                 typeName = typeAttr.trim();
             }
             var type = Context.getType( typeName );
-            if (type==null) 
+            if (type==null)
                 error('Error finding type type="$typeAttr" in loop ($widgetClass template). \nType $typeName was not found.  \nNode: ${node.html()}', p);
             loopInputCT = type.toComplexType();
         }
@@ -634,13 +640,13 @@ class WidgetTools
             error( "Exiting", p );
         }
         else {
-            // Check if a partial is specified, if not, use InnerHTML to define a new partial 
+            // Check if a partial is specified, if not, use InnerHTML to define a new partial
             var partialTypeName = node.attr("partial");
             if ( partialTypeName=="" ) {
                 var partialHtml = node.innerHTML();
                 if ( partialHtml.length==0 )
                     error( 'You must define either a partial="" attribute, or have child elements for the dtx:loop in widget $widgetClass', p );
-                
+
                 // Process the template as a partial declaration
                 partialTypeName = "_" + name.charAt(0).toUpperCase() + name.substr(1);
 
@@ -653,11 +659,11 @@ class WidgetTools
                         doc: null,
                         access: [APublic]
                     };
-                    processPartialDeclarations( partialTypeName, node, [ propertyToAdd ], true );
+                    processPartialDeclarations( partialTypeName, node, [ propertyToAdd ] );
                 }
             }
-            
-            // Set up the full name for relative partials 
+
+            // Set up the full name for relative partials
             if (partialTypeName.startsWith("_"))
             {
                 partialTypeName = widgetClass.get().name + partialTypeName;
@@ -666,21 +672,24 @@ class WidgetTools
 
             // Extract the ClassType for the chosen type
             var partialClassType:Ref<ClassType>;
+            var widgetType:Type;
             try {
-                switch ( Context.getType(partialTypeName) )
+                widgetType = Context.getType(partialTypeName);
+                switch ( widgetType )
                 {
                     case TInst(t,_):
-                        // get the type
+                        // get the widgetType
                         partialClassType = t;
-                    default: 
+                    default:
                         throw "Asked for loop partial " + partialTypeName + " but that doesn't appear to be a class";
                 }
             } catch (e:String) {
-                if ( e=="Type not found '" + partialTypeName + "'" ) 
+                if ( e=="Type not found '" + partialTypeName + "'" )
                     error('Unable to find Loop Widget/Partial "$partialTypeName" in widget template $widgetClass', p);
                 else throw e;
             }
-            
+            var isChildWidget = widgetType.isSubTypeOf(Context.getType("dtx.widget.ChildWidget")).match(Success(_));
+
             // Replace the call with <div data-dtx-loop="$name"></div>
             var partialFirstElement = node.firstChildren( true );
             var placeholderName = switch( node.parentNode.tagName() ) {
@@ -698,16 +707,18 @@ class WidgetTools
                 pack: partialClassType.get().pack,
                 name: partialTypeName
             });
+            var localComplexType = Context.toComplexType(Context.getLocalType());
             var inputTypeParam = TPType( loopInputCT );
             var widgetTypeParam = TPType( widgetTypePath );
+            var parentTypeParam = isChildWidget ? TPType( localComplexType ) : null;
             var loopPropType = TPath( {
                 sub: null,
-                params: [ inputTypeParam, widgetTypeParam ],
+                params: isChildWidget ? [parentTypeParam,inputTypeParam,widgetTypeParam] : [inputTypeParam,widgetTypeParam],
                 pack: ["dtx","widget"],
-                name: "WidgetLoop"
+                name: isChildWidget ? "ChildWidgetLoop" : "WidgetLoop"
             });
             var prop = BuildTools.getOrCreateProperty(name, loopPropType, false, true);
-            
+
             // Add some lines to the setter
             var variableRef = name.resolve();
             var partialTypeRef = partialTypeName.resolve();
@@ -730,23 +741,38 @@ class WidgetTools
             // Get the init function, instantiate our loop object
             var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
             var propNameExpr = Context.makeExpr( propName, p );
-            linesToAdd = macro {
-                // new WidgetLoop($Partial, $varName, propmap=null, automap=true)
-                $variableRef = new dtx.widget.WidgetLoop($partialTypeRef, $propNameExpr, true);
-                $variableRef.setJoins($joinExpr, $finalJoinExpr, $afterJoinExpr);
-            };
+            var useAutoMap = false; // Later we might add an attribute to enable this...
+
+            linesToAdd =
+                if (isChildWidget) macro {
+                    // new ChildWidgetLoop(this, $Partial, $varName, propmap=null, automap=true)
+                    $variableRef = new dtx.widget.ChildWidgetLoop(this, $partialTypeRef, $propNameExpr, $v{useAutoMap});
+                    $variableRef.setJoins($joinExpr, $finalJoinExpr, $afterJoinExpr);
+                }
+                else macro {
+                    // new WidgetLoop($Partial, $varName, propmap=null, automap=true)
+                    $variableRef = new dtx.widget.WidgetLoop($partialTypeRef, $propNameExpr, $v{useAutoMap});
+                    $variableRef.setJoins($joinExpr, $finalJoinExpr, $afterJoinExpr);
+                };
             BuildTools.addLinesToFunction(initFn, linesToAdd);
 
             // Find any variables mentioned in the iterable / for loop, and add to our setter
             if ( iterableExpr!=null ) {
                 var idents = iterableExpr.extractIdents();
                 var iterableNullCheck = BuildTools.generateNullCheckForExpression( iterableExpr );
-                var setListLine = macro 
+                var setListLine = macro
                     if ( $variableRef!=null && $iterableNullCheck ) {
-                        try $variableRef.setList( $iterableExpr ) catch (e:Dynamic) $variableRef.empty();
+                        try
+                            $variableRef.setList( $iterableExpr )
+                        catch (e:Dynamic) {
+                            var stack = haxe.CallStack.toString( haxe.CallStack.exceptionStack() );
+                            trace( 'Failed to update loop: '+e );
+                            trace( 'Stack trace: '+stack );
+                            $variableRef.empty();
+                        }
                     }
 
-                if ( idents.length>0 ) 
+                if ( idents.length>0 )
                     // If it has variables, set it in all setters
                     addExprToAllSetters(setListLine,idents, true);
                 else
@@ -775,6 +801,17 @@ class WidgetTools
         }
     }
 
+    static function getSetterTemplateForSuperProperty( setterName:String, ct:ComplexType ) {
+        return (macro class OurField{
+            override function $setterName( val:$ct ):$ct {
+                // First time to set.
+                super.$setterName(val);
+                // Second time for return value.
+                return super.$setterName(val);
+            }
+        }).fields[0];
+    }
+
     static function processAttributes(node:dtx.DOMNode)
     {
         for (attName in (node:Xml).attributes())
@@ -800,7 +837,7 @@ class WidgetTools
                 // look for special attributes eg <ul dtx-show="hasItems" />
                 var wasDtxAttr = processDtxBoolAttributes(node, attName);
             }
-            else 
+            else
             {
                 // look for variable interpolation eg <div id="person_$name">...</div>
                 if (node.getAttribute(attName).indexOf('$') > -1)
@@ -825,7 +862,7 @@ class WidgetTools
                 name: "DOMNode"
             });
             var prop = BuildTools.getOrCreateProperty(name, propType, true, false);
-            
+
             // Change the setter to null
             switch (prop.property.kind)
             {
@@ -840,18 +877,18 @@ class WidgetTools
                 case FFun(f):
                     f.expr = macro return $selector;
                     prop.getter.access.push( AInline );
-                default: 
+                default:
             }
         }
     }
 
-    static function addEventTriggerForElement(node:dtx.DOMNode, attName:String) 
+    static function addEventTriggerForElement(node:dtx.DOMNode, attName:String)
     {
         var eventName = attName.substr(7);
         var eventBody = node.attr( attName );
         node.removeAttr(attName);
 
-        if ( Context.defined("js") ) 
+        if ( Context.defined("js") )
         {
             if ( eventName!="" && eventBody!="" )
             {
@@ -859,16 +896,16 @@ class WidgetTools
                 if ( eventBody.endsWith(";")==false ) eventBody = eventBody+";";
 
                 var className = Context.getLocalClass().toString();
-                var eventBodyExpr = 
-                    try 
+                var eventBodyExpr =
+                    try
                         Context.parse( '{$eventBody}', BuildTools.currentPos() )
-                    catch (e:Dynamic) 
+                    catch (e:Dynamic)
                         error('Error parsing $attName="$eventBody" in $className template. \nError: $e \nNode: ${node.html()}', BuildTools.currentPos());
                 eventBodyExpr.substitute({ "_": macro e.currentTarget });
 
                 var selector = getUniqueSelectorForNode(node); // Returns for example: dtx.collection.Traversing.find(this, $selectorTextAsExpr)
                 var lineToAdd = macro dtx.single.EventManagement.on( $selector, $v{eventName}, function (e:js.html.Event) { $eventBodyExpr; } );
-                
+
                 var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
                 BuildTools.addLinesToFunction(initFn, lineToAdd);
             }
@@ -901,7 +938,7 @@ class WidgetTools
         }
         ```
 
-        As you can see, the bind is tied to the setter of the left-most property: when "this.student" is set, the input will update.  
+        As you can see, the bind is tied to the setter of the left-most property: when "this.student" is set, the input will update.
         If you set "this.student.name" without updating "this.student", the input will not be updated.
         A workaround can be to call `s.name = 'new name'; myWidget.student = s;`, so that the setter will run again after the property has changed.
     **/
@@ -910,16 +947,16 @@ class WidgetTools
         var bindTo = node.attr( attName );
         node.removeAttr( attName );
 
-        if ( bindTo!="" ) 
+        if ( bindTo!="" )
         {
             var className = Context.getLocalClass().toString();
             var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
-            var selector = getUniqueSelectorForNode(node); 
+            var selector = getUniqueSelectorForNode(node);
 
-            var bindToExpr = 
-                try 
+            var bindToExpr =
+                try
                     Context.parse( bindTo, BuildTools.currentPos() )
-                catch (e:Dynamic) 
+                catch (e:Dynamic)
                     error('Error parsing $attName="$bindTo" in $className template. \nError: $e \nNode: ${node.html()}', BuildTools.currentPos());
 
             var fieldName = getLeftMostVariable( bindToExpr );
@@ -938,8 +975,8 @@ class WidgetTools
             }
             var setValLine = macro dtx.single.ElementManipulation.setVal( $selector, $setValueExpr );
             addExprToAllSetters( setValLine, [fieldName] );
-            
-            if ( Context.defined("js") ) 
+
+            if ( Context.defined("js") )
             {
                 // Add a "change" event listener to the init function.  On each change, set the "bindTo" property.
                 var getVal = macro dtx.single.ElementManipulation.val($selector);
@@ -991,15 +1028,15 @@ class WidgetTools
 
         if ( content!="" ) {
             var className = Context.getLocalClass().toString();
-            var selector = getUniqueSelectorForNode(node); 
+            var selector = getUniqueSelectorForNode(node);
 
-            var contentExpr = 
-                try 
+            var contentExpr =
+                try
                     Context.parse( content, BuildTools.currentPos() )
-                catch (e:Dynamic) 
+                catch (e:Dynamic)
                     error('Error parsing $attName="$content" in $className template. \nError: $e \nNode: ${node.html()}', BuildTools.currentPos());
 
-            // TODO: check if we need to be more thorough in which variables we put setters on. 
+            // TODO: check if we need to be more thorough in which variables we put setters on.
             // With text interpolation, we check for arguments in function calls also.
             // Here we just check for the left-most, which should suffice MOST of the time...
             var fieldName = getLeftMostVariable( contentExpr );
@@ -1009,19 +1046,19 @@ class WidgetTools
     }
 
     static var uniqueDtxID:Int = 0;
-    
+
     /** Get a unique selector for the node, creating a data attribute if necessary */
     static function getUniqueSelectorForNode(node:dtx.DOMNode):Expr
     {
-        // Get an existing data-dtx-id, or set a new one 
+        // Get an existing data-dtx-id, or set a new one
         var id:Int;
         var attValue = node.attr("data-dtx-id");
-        if (attValue=="") 
+        if (attValue=="")
         {
             id = uniqueDtxID++;
             node.setAttr("data-dtx-id", '$id');
         }
-        else 
+        else
         {
             id = Std.parseInt(attValue);
         }
@@ -1043,7 +1080,7 @@ class WidgetTools
         // Set up bindingExpr
         //var bindingExpr = macro this.find($selectorAsExpr).setAttr($nameAsExpr, $interpolationExpr);
         var bindingExpr = macro dtx.single.ElementManipulation.setAttr($selectorExpr, $nameAsExpr, $interpolationExpr);
-        
+
         // Go through array of all variables again
         addExprToAllSetters(bindingExpr, variablesInside, true);
 
@@ -1057,7 +1094,7 @@ class WidgetTools
         var selectorAsExpr = getUniqueSelectorForNode(node.parentNode);
         var index = node.index();
         var indexAsExpr = index.toExpr();
-        
+
         var result = processVariableInterpolation(node.text());
         var interpolationExpr = result.expr;
         var variablesInside = result.variablesInside;
@@ -1065,8 +1102,8 @@ class WidgetTools
         // Set up bindingExpr
         //var bindingExpr = macro this.children(false).getNode($indexAsExpr).setText($interpolationExpr);
         var bindingExpr = macro dtx.single.ElementManipulation.setText(dtx.single.Traversing.children($selectorAsExpr, false).getNode($indexAsExpr), $interpolationExpr);
-        
-        // Add binding expression to all setters.  
+
+        // Add binding expression to all setters.
         addExprToAllSetters(bindingExpr, variablesInside, true);
 
         // Initialise variables
@@ -1075,20 +1112,41 @@ class WidgetTools
 
     static function addExprToAllSetters(expr:Expr, variables:Array<String>, ?prepend)
     {
-        if (variables.length == 0)
-        {
-            // Add it to the init() function instead instead
-            var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
-            BuildTools.addLinesToFunction(initFn, expr);
-        }
-        else for (varName in variables)
+        for (varName in variables)
         {
             // Add bindingExpr to every setter.  Add at position `1`, so after the first line, which should be 'this.field = v;'
             if (varName.fieldExists())
             {
-                varName.getField().getSetter().addLinesToFunction(expr, 1);
+                var setter = varName.getField().getSetter();
+                if (setter!=null)
+                    setter.addLinesToFunction(expr, 1);
             }
-            else error('Field $varName not found in ${Context.getLocalClass()}', BuildTools.currentPos() );
+            else
+            {
+                switch varName.getFieldFromSuperClass() {
+                    case Some(field):
+                        if (field.kind.match(FVar(_,AccCall))) {
+                            var setterName = 'set_$varName';
+                            var type = BuildTools.replaceSuperTypeParamsWithImplementation( field.type );
+                            var ct = type.toComplex();
+                            var setterTemplate = getSetterTemplateForSuperProperty( setterName,ct );
+                            var setterFn = BuildTools.getOrCreateField(setterTemplate);
+                            BuildTools.addLinesToFunction(setterFn, expr, 1);
+                        }
+                        else
+                            error('Field $varName on superclass must be a property with a setter.', BuildTools.currentPos() );
+                    case None:
+                        // It might be an identifier from the local context, or from an import, or a type name etc.
+                        // Remove it from the list, so that if no other setters are found it will set during `init()`.
+                        /*variables.remove(varName);*/
+                }
+            }
+        }
+        if (variables.length==0)
+        {
+            // Add it to the init() function instead
+            var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
+            BuildTools.addLinesToFunction(initFn, expr);
         }
     }
 
@@ -1103,14 +1161,16 @@ class WidgetTools
         for (varName in variables)
         {
             var field = varName.getField();
+            if ( field==null )
+                continue;
             switch (field.kind)
             {
                 case FProp(get,set,type,e):
                     var initValueExpr:Expr = null;
                     var initFn = BuildTools.getOrCreateField(getInitFnTemplate());
-                    if ( e!=null ) 
+                    if ( e!=null )
                         initValueExpr = e;
-                    else 
+                    else
                     {
                         if ( type == null ) throw 'Unknown type when trying to initialize $varName on class ${Context.getLocalClass()}';
                         switch (type)
@@ -1119,15 +1179,15 @@ class WidgetTools
                                 var name = path.name;
                                 if ( name=="StdTypes" ) name = path.sub;
                                 switch (name) {
-                                    case "Bool": 
+                                    case "Bool":
                                         initValueExpr = macro false;
-                                    case "String": 
+                                    case "String":
                                         initValueExpr = macro "";
-                                    case "Int": 
+                                    case "Int":
                                         initValueExpr = macro 0;
-                                    case "Float": 
+                                    case "Float":
                                         initValueExpr = macro 0;
-                                    default: 
+                                    default:
                                         initValueExpr = macro null;
                                 }
                             default:
@@ -1155,10 +1215,10 @@ class WidgetTools
     {
         var stringAsExpr = Context.makeExpr(string, BuildTools.currentPos());
         var interpolationExpr = Format.format(stringAsExpr);
-        
+
         // Get an array of all the variables in interpolationExpr
         var variables:Array<ExtractedVarType> = extractVariablesUsedInInterpolation(interpolationExpr);
-        var variableNames:Array<String> = [];
+        var variableNames:Array<String> = BuildTools.extractIdents(interpolationExpr);
 
         for (extractedVar in variables)
         {
@@ -1198,9 +1258,9 @@ class WidgetTools
         };
     }
 
-    /** Takes the output of an expression such as Std.format(), and searches for variables used... 
+    /** Takes the output of an expression such as Std.format(), and searches for variables used...
     Basic implementation so far, only looks for basic EConst(CIdent(myvar)) */
-    public static function extractVariablesUsedInInterpolation(expr:Expr)  
+    public static function extractVariablesUsedInInterpolation(expr:Expr)
     {
         var variablesInside:Array<ExtractedVarType> = [];
         switch(expr.expr)
@@ -1223,10 +1283,15 @@ class WidgetTools
                                         if ( leftMostVarName.fieldExists() )
                                             variablesInside.push( ExtractedVarType.Field(leftMostVarName) );
                                         else {
-                                            var localClass = Context.getLocalClass();
-                                            var printer = new Printer("  ");
-                                            var partString = printer.printExpr(part);
-                                            error('In the Detox template for $localClass, in the expression `$partString`, variable "$leftMostVarName" could not be found.  Variables used in complex expressions inside the template must be explicitly declared.', localClass.get().pos);
+                                            switch leftMostVarName.getFieldFromSuperClass() {
+                                                case Some(field):
+                                                    variablesInside.push( ExtractedVarType.Field(leftMostVarName) );
+                                                case None:
+                                                    var localClass = Context.getLocalClass();
+                                                    var printer = new Printer("  ");
+                                                    var partString = printer.printExpr(part);
+                                                    error('In the Detox template for $localClass, in the expression `$partString`, variable "$leftMostVarName" could not be found.  Variables used in complex expressions inside the template must be explicitly declared.', localClass.get().pos);
+                                            }
                                         }
                                     }
                                 case ECall(e, params):
@@ -1236,7 +1301,7 @@ class WidgetTools
                                         if (varName != null) {
                                             if ( varName.fieldExists() ) {
                                                 switch varName.getField().kind {
-                                                    case FVar(_,_), FProp(_,_,_,_): 
+                                                    case FVar(_,_), FProp(_,_,_,_):
                                                         variablesInside.push( ExtractedVarType.Call(varName) );
                                                     case FFun(_):
                                                 }
@@ -1274,7 +1339,7 @@ class WidgetTools
 
     /**
         Takes an expression and tries to find the left-most plain variable.  For example "student" in `student.name`, "age" in `person.age`, "name" in `name.length`.
-        
+
         It will try to ignore "this", for example it will match "person" in `this.person.age`.
 
         Note it will also match packages: "haxe" in "haxe.crypto.Sha1.encode"
@@ -1294,16 +1359,16 @@ class WidgetTools
                 var currentName:String;
                 while ( leftMostVarName==null ) {
                     switch ( currentExpr.expr ) {
-                        case EConst(CIdent(varName)): 
-                            if (varName == "this") 
+                        case EConst(CIdent(varName)):
+                            if (varName == "this")
                                 leftMostVarName = currentName;
-                            else 
+                            else
                                 leftMostVarName = varName;
-                        case EField(e, field): 
+                        case EField(e, field):
                             currentName = field;
                             currentExpr = e;
-                        case _: 
-                            err = true;
+                        case _:
+                            leftMostVarName = getLeftMostVariable( currentExpr );
                             break;
                     }
                 }
@@ -1313,7 +1378,9 @@ class WidgetTools
                 // so we can listen to set_student for changes.  But what if we have have `StringTools.replace(text, student.firstName, "")`?
                 // In that case we might want this to return `[text, student]`, as we will want setters on both of those
                 return getLeftMostVariable(e);
-            case EMeta(_,e): 
+            case EMeta(_,e):
+                return getLeftMostVariable(e);
+            case EArray(e,index):
                 return getLeftMostVariable(e);
             case EConst(_): // A constant.  Leave it null
             case _: err = true;
@@ -1384,10 +1451,10 @@ class WidgetTools
 
             // Turn the attribute into an expression, and check it is a Bool, so we can use it in an if statement
             var testExprStr = node.attr(attName);
-            var testExpr = 
-                try 
+            var testExpr =
+                try
                     Context.parse( testExprStr, classPos )
-                catch (e:Dynamic) 
+                catch (e:Dynamic)
                     error('Error parsing $attName="$testExprStr" in $className template. \nError: $e \nNode: ${node.html()}', classPos);
 
             // Extract all the variables used, create the `if(test) ... else ...` expr, add to setters, initialize variables
@@ -1400,7 +1467,7 @@ class WidgetTools
             // Remove the attribute now that we've processed it
             node.removeAttr(attName);
         }
-            
+
         return wasDtxAttr;
     }
 
@@ -1412,7 +1479,7 @@ class WidgetTools
         if (booleanSetters == null) booleanSetters = new Map();
         if (booleanSetters.exists(className) ==  false) booleanSetters.set(className, new Map());
 
-        // If this boolean setter doesn't exist yet, create it.  
+        // If this boolean setter doesn't exist yet, create it.
         if (booleanSetters.get(className).exists(booleanName) == false)
         {
             // get or create property
@@ -1439,14 +1506,14 @@ class WidgetTools
                     {
                         case EBlock(b):
                             trueBlock = b;
-                        default: 
+                        default:
                             throw "Error in WidgetTools: this should definitely have been an EBlock";
                     }
                     switch (eelse.expr)
                     {
                         case EBlock(b):
                             falseBlock = b;
-                        default: 
+                        default:
                             throw "Error in WidgetTools: this should definitely have been an EBlock";
                     }
                 default:
