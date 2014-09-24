@@ -19,9 +19,9 @@ package dtx;
 	Instead you can compare a `nodeType` from a `dtx.DOMNode` with one of these values.
 	This will work with both `js.html.Node` and `Xml`.
 **/
-class DOMType {
-	static public var DOCUMENT_NODE = #if js js.html.Node.DOCUMENT_NODE #else Xml.Document #end;
-	static public var ELEMENT_NODE = #if js js.html.Node.ELEMENT_NODE #else Xml.Element #end;
-	static public var TEXT_NODE = #if js js.html.Node.TEXT_NODE #else Xml.PCData #end;
-	static public var COMMENT_NODE = #if js js.html.Node.COMMENT_NODE #else Xml.Comment #end;
-}
+typedef DOMType = 
+#if js 
+	dtx.js.DOMType
+#else
+	dtx.sys.DOMType
+#end;
