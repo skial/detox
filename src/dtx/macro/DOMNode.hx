@@ -1,4 +1,4 @@
-package dtx.neko;
+package dtx.macro;
 
 /**
  * ...
@@ -24,9 +24,7 @@ from dtx.std.DOMNode to dtx.std.DOMNode {
 	function _setInnerHTML( html:String ):String {
 		var xmlDocNode:Xml = null;
 		try {
-			// Neko's native parser has issues with over-encoding HTML entities.
-			// The Haxe based parser is a little better, it at least gets <, &, and > correct.
-			xmlDocNode = html.indexOf("&")>-1 ? haxe.xml.Parser.parse( html ) : Xml.parse( html );
+			xmlDocNode = haxe.xml.Parser.parse( "<doc>" + html + "</doc>" ).firstChild();
 		}
 		catch ( e:Dynamic ) {
 			xmlDocNode = Xml.createDocument();

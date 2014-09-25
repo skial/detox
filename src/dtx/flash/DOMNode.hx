@@ -15,11 +15,11 @@ import flash.xml.XMLList;
 	removeAttribute, removeChild, 
 	cloneNode, _empty
 )
-abstract DOMNode(dtx.sys.DOMNode)
+abstract DOMNode(dtx.std.DOMNode)
 from Xml to Xml
-from dtx.sys.DOMNode to dtx.sys.DOMNode {
+from dtx.std.DOMNode to dtx.std.DOMNode {
 
-	public inline function new(v:dtx.sys.DOMNode) {
+	public inline function new(v:dtx.std.DOMNode) {
 		this = v;
 	}
 	

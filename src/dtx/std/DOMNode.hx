@@ -1,4 +1,4 @@
-package dtx.sys;
+package dtx.std ;
 
 /**
  * ...
@@ -34,11 +34,7 @@ abstract DOMNode(Xml) from Xml to Xml {
 	function _setInnerHTML( html:String ):String {
 		var xmlDocNode:Xml = null;
 		try {
-			#if macro
-				xmlDocNode = haxe.xml.Parser.parse( "<doc>" + html + "</doc>" ).firstChild();
-			#else
-				xmlDocNode = Xml.parse( html );
-			#end
+			xmlDocNode = Xml.parse( html );
 		}
 		catch ( e:Dynamic ) {
 			xmlDocNode = Xml.createDocument();

@@ -34,10 +34,12 @@ typedef DOMNode =
 	dtx.js.DOMNode
 #elseif flash
 	dtx.flash.DOMNode
-#elseif neko
+#elseif (neko || cpp)
 	dtx.neko.DOMNode
+#elseif macro
+	dtx.macro.DOMNode
 #else
-	dtx.sys.DOMNode
+	dtx.std.DOMNode
 #end;
 
 /**
@@ -65,6 +67,6 @@ typedef DocumentOrElement =
 #if js
 	dtx.js.DocumentOrElement
 #else
-	dtx.sys.DocumentOrElement<DOMNode>
+	dtx.std.DocumentOrElement<DOMNode>
 #end;
 

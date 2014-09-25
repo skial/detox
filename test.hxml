@@ -10,9 +10,9 @@
 -cp test
 -swf-version 9
 -swf build/as3_test.swf
--xml doc/flash.xml
+#-xml doc/flash.xml
 
---next
+#--next
 #Flash 8
 #-main TestMain
 #-lib munit
@@ -25,7 +25,7 @@
 #-swf build/as2_test.swf
 #-xml doc/flash8.xml
 
-#--next
+--next
 # JavaScript
 -main TestMain
 -lib munit
@@ -38,7 +38,7 @@
 -cp test
 -js build/js_test.js
 -D embed_js
--xml doc/js.xml
+#-xml doc/js.xml
 
 --next
 
@@ -53,20 +53,20 @@
 
 -cp test
 -neko build/neko_test.n
--xml doc/neko.xml
+#-xml doc/neko.xml
 
---next
+#--next
 
 # CPP
--main TestMain
--lib munit
--lib hamcrest
--lib selecthxml
--lib tink_macro
--lib tink_core
--cp src
+#-main TestMain
+#-lib munit
+#-lib hamcrest
+#-lib selecthxml
+#-lib tink_macro
+#-lib tink_core
+#-cp src
 
--cp test
--cpp build/cpp/
--xml doc/cpp.xml
--D HXCPP_M64
+#-cp test
+#-cpp build/cpp/
+#-xml doc/cpp.xml
+#-D HXCPP_M64

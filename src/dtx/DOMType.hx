@@ -23,5 +23,5 @@ typedef DOMType =
 #if js 
 	dtx.js.DOMType
 #else
-	dtx.sys.DOMType
+	dtx.std.DOMType
 #end;
