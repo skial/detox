@@ -48,7 +48,7 @@ class Tools {
 		@param selector A CSS selector used to match nodes in the document.
 		@return A DOMCollection containing all matching nodes, or an empty collection if no match was found.
 	**/
-	public static inline function find(selector:String):DOMCollection {
+	public static function find(selector:String):DOMCollection {
 		return dtx.single.Traversing.find(document, selector);
 	}
 	
