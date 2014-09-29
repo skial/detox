@@ -67,6 +67,6 @@ typedef DocumentOrElement =
 #if js
 	dtx.js.DocumentOrElement
 #else
-	dtx.std.DocumentOrElement<DOMNode>
+	dtx.std.DocumentOrElement
 #end;
 

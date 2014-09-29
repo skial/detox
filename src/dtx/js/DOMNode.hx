@@ -12,7 +12,7 @@ import js.html.Node;
 	removeChild, hasChildNodes, appendChild, insertBefore,
 	hasAttributes, getAttribute, setAttribute, removeAttribute, // Should these only be on elements?
 	textContent, cloneNode,
-	addEventListener
+	addEventListener, toDOMCollection
 	// Notably absent: childNodes, attributes.
 	// I considered the implementations too JS specific to replicate on other platforms.
 )

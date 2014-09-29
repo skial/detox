@@ -9,7 +9,8 @@ package dtx.neko;
 	attributes, childNodes, parentNode, firstChild, lastChild,
 	nextSibling, previousSibling, textContent, _getInnerHTML,
 	hasChildNodes, getAttribute, setAttribute, removeAttribute,
-	appendChild, insertBefore, removeChild, cloneNode, _empty
+	appendChild, insertBefore, removeChild, cloneNode, _empty,
+	toDOMCollection
 )
 @:access(dtx)
 abstract DOMNode(dtx.std.DOMNode) 

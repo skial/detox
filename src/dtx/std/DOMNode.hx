@@ -21,6 +21,10 @@ abstract DOMNode(Xml) from Xml to Xml {
 		this = v;
 	}
 	
+	@:to public inline function toDOMCollection():DOMCollection {
+		return new DOMCollection( [this] );
+	}
+	
 	@:allow(dtx)
 	function _getInnerHTML():String {
 		var html = "";
