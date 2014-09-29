@@ -13,7 +13,7 @@ import flash.xml.XMLList;
 	nextSibling, previousSibling, textContent, _getInnerHTML,
 	_setInnerHTML, 	hasChildNodes, getAttribute, setAttribute,
 	removeAttribute, removeChild, 
-	cloneNode, _empty, toDOMCollection
+	cloneNode, _empty, toDOMCollection, fromDOMCollection
 )
 abstract DOMNode(dtx.std.DOMNode)
 from Xml to Xml

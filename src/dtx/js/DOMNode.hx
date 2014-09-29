@@ -12,7 +12,7 @@ import js.html.Node;
 	removeChild, hasChildNodes, appendChild, insertBefore,
 	hasAttributes, getAttribute, setAttribute, removeAttribute, // Should these only be on elements?
 	textContent, cloneNode,
-	addEventListener, toDOMCollection
+	addEventListener
 	// Notably absent: childNodes, attributes.
 	// I considered the implementations too JS specific to replicate on other platforms.
 )
@@ -23,6 +23,14 @@ abstract DOMNode(Node) from Node to Node {
 	
 	public inline function new(v:Node) {
 		this = v;
+	}
+	
+	@:to public inline function toDOMCollection():DOMCollection {
+		return new DOMCollection( [this] );
+	}
+	
+	@:from public static inline function fromDOMCollection(v:DOMCollection):DOMNode {
+		return v.collection[0];
 	}
 	
 	@:allow(dtx)
