@@ -1,5 +1,7 @@
 package dtx.std;
 
+import dtx.DOMNode;
+
 /**
  * ...
  * @author Skial Bainn
