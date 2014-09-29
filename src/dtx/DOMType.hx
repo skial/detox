@@ -22,6 +22,8 @@ package dtx;
 typedef DOMType = 
 #if js 
 	dtx.js.DOMType
+#elseif cs
+	dtx.cs.DOMType
 #else
 	dtx.std.DOMType
 #end;
