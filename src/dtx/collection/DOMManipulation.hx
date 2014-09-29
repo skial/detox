@@ -40,7 +40,7 @@ class DOMManipulation
 		@param childCollection - (optional) A collection of nodes to append to the parent. If null or empty this will be ignored.
 		@return The original `parentCollection`.
 	**/
-	static public function append<T:DOMCollection>(parentCollection:T, ?childNode:DOMNode, ?childCollection:DOMCollection):T
+	static public function append(parentCollection:DOMCollection, ?childNode:DOMNode, ?childCollection:DOMCollection):DOMCollection
 	{
 		var firstChildUsed = false;
 		if (parentCollection != null)
@@ -71,7 +71,7 @@ class DOMManipulation
 		@param childCollection - (optional) A collection of nodes to prepend to the parent. If null or empty this will be ignored.
 		@return The original `parentCollection`.
 	**/
-	static public function prepend<T:DOMCollection>(parentCollection:T, ?childNode:DOMNode, ?childCollection:DOMCollection):T
+	static public function prepend(parentCollection:DOMCollection, ?childNode:DOMNode, ?childCollection:DOMCollection):DOMCollection
 	{
 		var firstChildUsed = false;
 		if (parentCollection != null)
@@ -108,7 +108,7 @@ class DOMManipulation
 		@param parentCollection - (optional) A parent collection to append each child to. If null or empty it will be ignored.
 		@return The original `children` collection.
 	**/
-	static public function appendTo<T:DOMCollection>(children:T, ?parentNode:DOMNode, ?parentCollection:DOMCollection):T
+	static public function appendTo(children:DOMCollection, ?parentNode:DOMNode, ?parentCollection:DOMCollection):DOMCollection
 	{
 		if (parentNode != null)
 		{
@@ -136,7 +136,7 @@ class DOMManipulation
 		@param parentCollection - (optional) A parent collection to prepend each child to. If null or empty it will be ignored.
 		@return The original `children` collection.
 	**/
-	static public function prependTo<T:DOMCollection>(children:T, ?parentNode:DOMNode, ?parentCollection:DOMCollection):T
+	static public function prependTo(children:DOMCollection, ?parentNode:DOMNode, ?parentCollection:DOMCollection):DOMCollection
 	{
 		if (children != null)
 		{
@@ -162,7 +162,7 @@ class DOMManipulation
 		@param targetCollection A target collection containing nodes for each node in the content collection to be inserted before. Once finished these will be the next siblings of the content nodes. If null or empty it will be ignored.
 		@return The original `content` collection.
 	**/
-	static public function insertThisBefore<T:DOMCollection>(content:T, ?targetNode:DOMNode, ?targetCollection:DOMCollection):T
+	static public function insertThisBefore(content:DOMCollection, ?targetNode:DOMNode, ?targetCollection:DOMCollection):DOMCollection
 	{
 		if (content != null)
 		{
@@ -209,7 +209,7 @@ class DOMManipulation
 		@param targetCollection A target collection containing nodes for each node in the content collection to be inserted after. Once finished these will be the previous siblings of the content nodes. If null or empty it will be ignored.
 		@return The original `content` collection.
 	**/
-	static public function insertThisAfter<T:DOMCollection>(content:T, ?targetNode:DOMNode, ?targetCollection:DOMCollection):T
+	static public function insertThisAfter(content:DOMCollection, ?targetNode:DOMNode, ?targetCollection:DOMCollection):DOMCollection
 	{
 		if (content != null)
 		{
@@ -263,7 +263,7 @@ class DOMManipulation
 		@param contentCollection A collection of content nodes to insert. If null or empty it will be ignored.
 		@return The original `target` collection.
 	**/
-	static public function beforeThisInsert<T:DOMCollection>(target:T, ?contentNode:DOMNode, ?contentCollection:DOMCollection):T
+	static public function beforeThisInsert(target:DOMCollection, ?contentNode:DOMNode, ?contentCollection:DOMCollection):DOMCollection
 	{
 		if (contentNode != null)
 		{
@@ -291,7 +291,7 @@ class DOMManipulation
 		@param contentCollection A collection of content nodes to insert. If null or empty it will be ignored.
 		@return The original `target` collection.
 	**/
-	static public function afterThisInsert<T:DOMCollection>(target:T, ?contentNode:DOMNode, ?contentCollection:DOMCollection):T
+	static public function afterThisInsert(target:DOMCollection, ?contentNode:DOMNode, ?contentCollection:DOMCollection):DOMCollection
 	{
 		if (contentNode != null)
 		{
@@ -315,7 +315,7 @@ class DOMManipulation
 		@param nodesToRemove The collection of nodes to remove from their parent and the DOM. If the collection is null or empty this method will have no effect.
 		@return The original collection that has now been removed.
 	**/
-	static public function remove<T:DOMCollection>(nodesToRemove:T):T
+	static public function remove(nodesToRemove:DOMCollection):DOMCollection
 	{
 		if (nodesToRemove != null)
 		{
@@ -330,7 +330,7 @@ class DOMManipulation
 	/**
 		An alias for `remove` designed to prevent a name clash with the `remove` method on `Xml`/`DOMNode` (for removing attributes) on platforms other than Javascript.
 	**/
-	static public inline function removeFromDOM<T:DOMCollection>(nodesToRemove:T):T
+	static public inline function removeFromDOM(nodesToRemove:DOMCollection):DOMCollection
 	{
 		return remove(nodesToRemove);
 	}
@@ -345,7 +345,7 @@ class DOMManipulation
 		@param childrenToRemove A collection of nodes to look for and remove. If null or empty it will be ignored.
 		@return The original collection of parent nodes.
 	**/
-	static public function removeChildren<T:DOMCollection>(parents:T, ?childToRemove:DOMNode, ?childrenToRemove:DOMCollection):T
+	static public function removeChildren(parents:DOMCollection, ?childToRemove:DOMNode, ?childrenToRemove:DOMCollection):DOMCollection
 	{
 		if (parents != null)
 		{
@@ -373,7 +373,7 @@ class DOMManipulation
 		@param contentCollection A collection of nodes to be inserted as a replacement. If null or empty, it will be ignored.
 		@return The original target collection which has now been replaced.
 	**/
-	static public function replaceWith<T:DOMCollection>(target:T, ?contentNode:DOMNode, ?contentCollection:DOMCollection):T
+	static public function replaceWith(target:DOMCollection, ?contentNode:DOMNode, ?contentCollection:DOMCollection):DOMCollection
 	{
 		afterThisInsert(target, contentNode, contentCollection);
 		remove(target);
@@ -386,7 +386,7 @@ class DOMManipulation
 		@param parents The parent nodes to empty. If null or empty this method will have no effect.
 		@return The original collection of parents.
 	**/
-	static public function empty<T:DOMCollection>(parents:T):T
+	static public function empty(parents:DOMCollection):DOMCollection
 	{
 		if (parents != null)
 		{
