@@ -21,13 +21,13 @@ abstract DOMNode(Xml) from Xml to Xml {
 		this = v;
 	}
 	
-	@:to public inline function toDOMCollection():DOMCollection {
+	/*@:to public inline function toDOMCollection():DOMCollection {
 		return new DOMCollection( [this] );
-	}
+	}*/
 	
-	@:from public static inline function fromDOMCollection(v:DOMCollection):DOMNode {
+	/*@:from public static inline function fromDOMCollection(v:DOMCollection):DOMNode {
 		return v.collection[0];
-	}
+	}*/
 	
 	@:allow(dtx)
 	function _getInnerHTML():String {

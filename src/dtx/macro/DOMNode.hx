@@ -9,8 +9,7 @@ package dtx.macro;
 	attributes, childNodes, parentNode, firstChild, lastChild,
 	nextSibling, previousSibling, textContent, _getInnerHTML,
 	hasChildNodes, getAttribute, setAttribute, removeAttribute,
-	appendChild, insertBefore, removeChild, cloneNode, _empty,
-	toDOMCollection, fromDOMCollection
+	appendChild, insertBefore, removeChild, cloneNode, _empty
 )
 @:access(dtx)
 abstract DOMNode(dtx.std.DOMNode) 
