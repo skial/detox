@@ -471,7 +471,7 @@ class CollectionTest
 	public function filterCallbackReturnsNull()
 	{
 		var filteredList = listItems.filter(function (li) {
-			#if (flash9 || cpp || cs)
+			#if (flash9 || cpp || cs || java)
 			var returnValue = false;
 			#else
 			var returnValue:Bool = null;
@@ -484,7 +484,7 @@ class CollectionTest
 	}
 
 	@Test 
-	public function clone()
+	public function DOMclone()
 	{
 		// Create a clone of list items and modify every element
 		var listItemsClone = listItems.clone();
