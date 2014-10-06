@@ -492,7 +492,7 @@ class WidgetTest
 		var w = new widgets.Interpolation.InterpolationDifferentTypes();
 		w.name = "Jason";
 		w.age = 25;
-		w.birthday = new Date(1987,09,16,0,0,0);
+		w.birthday = new Date(1987,9,16,0,0,0);
 		w.pets = ["Cuddles","Theodore"];
 		w.favouriteNumber = 3.14;
 		w.wasTruth = true;
