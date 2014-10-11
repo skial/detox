@@ -238,40 +238,13 @@ class Traversing
 		@param selector The CSS selector to use when searching for a child.
 		@return The collection of matching elements.  Will be empty if no match was found or the parent node was null / had no children.
 	**/
-	static public function find(node:DOMNode, selector:String):DOMCollection
-	{
-		var newDOMCollection = new DOMCollection();
-		if (node != null && ElementManipulation.isElement(node) || dtx.single.ElementManipulation.isDocument(node))
-		{
-			#if (js && !macro)
-				var element:DOMElement = cast node;
-				if (untyped __js__("document.querySelectorAll"))
-				{
-					var results = element.querySelectorAll(selector);
-					newDOMCollection.addNodeList(results);
-				}
-				else
-				{
-					var engine:String->DOMNode->Array<DOMNode> = untyped __js__("
-						(('undefined' != typeof Sizzle && Sizzle) ||
-						(('undefined' != typeof jQuery) && jQuery.find) ||
-						(('undefined' != typeof $) && $.find))
-					");
-					var results = engine(selector, node);
-					newDOMCollection.addCollection(results);
-				}
-			#else
-				var results = selecthxml.SelectDom.runtimeSelect(node, selector);
-				// SelectHxml also includes our original node in the search.
-				// We should match the querySelectorAll() functionality from JS, which
-				// only searches descendant nodes.  Therefore, remove the current node
-				// if it was returned as a match.
-				results.remove(node);
-
-				newDOMCollection.addCollection(results);
-			#end
-		}
-		return newDOMCollection;
+	static public function find(node:DOMNode, selector:String):DOMCollection {
+		return 
+		#if (js && !macro)
+			dtx.js.Traversing.find(node, selector)
+		#else
+			dtx.std.Traversing.find(node, selector)
+		#end;
 	}
 }
 
