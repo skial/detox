@@ -239,12 +239,7 @@ class Traversing
 		@return The collection of matching elements.  Will be empty if no match was found or the parent node was null / had no children.
 	**/
 	static public function find(node:DOMNode, selector:String):DOMCollection {
-		return 
-		#if (js && !macro)
-			dtx.js.Traversing.find(node, selector)
-		#else
-			dtx.std.Traversing.find(node, selector)
-		#end;
+		return SingleTraverse.find(node, selector);
 	}
 }
 

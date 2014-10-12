@@ -277,49 +277,7 @@ class Traversing
 		@param selector The CSS selector to use when searching for a child.
 		@return The collection of matching elements.  Will be empty if no match was found or the parent collection was null, empty or had no children.
 	**/
-	static public function find(collection:DOMCollection, selector:String):DOMCollection
-	{
-		var newDOMCollection = new DOMCollection();
-		if (collection != null && selector != null && selector != "")
-		{
-			for (node in collection)
-			{
-				if (dtx.single.ElementManipulation.isElement(node) || dtx.single.ElementManipulation.isDocument(node))
-				{
-					#if (js && !macro)
-						var element:DOMElement = cast node;
-						if (untyped __js__("document.querySelectorAll"))
-						{
-							var results = element.querySelectorAll(selector);
-							newDOMCollection.addNodeList(results);
-						}
-						else
-						{
-							var engine:String->DOMNode->Array<DOMNode> = untyped __js__("
-								(('undefined' != typeof Sizzle && Sizzle) ||
-								(('undefined' != typeof jQuery) && jQuery.find) ||
-								(('undefined' != typeof $) && $.find))
-							");
-							var results = engine(selector, node);
-							newDOMCollection.addCollection(results);
-						}
-					#else
-						// This next line is a workaround to a bug in selecthxml
-						// See http://code.google.com/p/selecthxml/issues/detail?id=2
-						// And http://code.google.com/p/selecthxml/issues/detail?id=3
-						var results = selecthxml.SelectDom.runtimeSelect(node, selector);
-
-						// SelectHxml also includes our original node in the search.
-						// We should match the querySelectorAll() functionality from JS, which
-						// only searches descendant nodes.  Therefore, remove the current node
-						// if it was returned as a match.
-						results.remove(node);
-
-						newDOMCollection.addCollection(results);
-					#end
-				}
-			}
-		}
-		return newDOMCollection;
+	static public function find(collection:DOMCollection, selector:String):DOMCollection {
+		return CollectionTraverse.find(collection, selector);
 	}
 }

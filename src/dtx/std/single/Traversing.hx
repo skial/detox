@@ -1,4 +1,4 @@
-package dtx.std;
+package dtx.std.single;
 
 import dtx.DOMNode;
 import dtx.single.ElementManipulation;

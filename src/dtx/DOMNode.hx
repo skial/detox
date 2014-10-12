@@ -70,3 +70,17 @@ typedef DocumentOrElement =
 	dtx.std.DocumentOrElement
 #end;
 
+typedef SingleTraverse = 
+#if js
+	dtx.js.single.Traversing
+#else
+	dtx.std.single.Traversing
+#end;
+
+typedef CollectionTraverse = 
+#if js
+	dtx.js.collection.Traversing
+#else
+	dtx.std.collection.Traversing
+#end;
+

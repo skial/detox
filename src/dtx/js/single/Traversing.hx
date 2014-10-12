@@ -1,4 +1,4 @@
-package dtx.js;
+package dtx.js.single;
 
 import dtx.DOMNode;
 import dtx.single.ElementManipulation;
