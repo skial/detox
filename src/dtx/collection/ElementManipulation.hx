@@ -166,7 +166,7 @@ class ElementManipulation
 		{
 			for (node in collection)
 			{
-				text = text + dtx.single.ElementManipulation.text(node);
+				text += dtx.single.ElementManipulation.text(node);
 			}
 		}
 		return text;
