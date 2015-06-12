@@ -1,6 +1,7 @@
 package dtx.js;
 
 import js.html.Node;
+import js.html.DOMElement;
 
 /**
  * ...
@@ -16,12 +17,12 @@ import js.html.Node;
 	// Notably absent: childNodes, attributes.
 	// I considered the implementations too JS specific to replicate on other platforms.
 )
-abstract DOMNode(Node) from Node to Node {
+abstract DOMNode(DOMElement) from DOMElement to DOMElement {
 
 	public var attributes(get,never):Iterable<{ name:String, value:String }>;
 	public var childNodes(get,never):Iterable<DOMNode>;
 	
-	public inline function new(v:Node) {
+	public inline function new(v:DOMElement) {
 		this = v;
 	}
 	
@@ -55,9 +56,13 @@ abstract DOMNode(Node) from Node to Node {
 	function get_childNodes():Array<DOMNode> {
 		var children = [];
 		for ( i in 0...this.childNodes.length ) {
-			children.push( this.childNodes.item(i) );
+			children.push( fromNode( this.childNodes.item(i) ) );
 		}
 		return children;
+	}
+	
+	@:from public static inline function fromNode(v:Node):DOMNode {
+		return new dtx.js.DOMNode(cast v);
 	}
 	
 }
